@@ -82,6 +82,19 @@ body {
   font-style: italic;
 }
 
+.badge-trans {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-style: normal;
+  color: var(--muted);
+  opacity: 0.7;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.05rem 0.4rem;
+  vertical-align: middle;
+  letter-spacing: 0.02em;
+}
+
 #digital-clock {
   position: fixed;
   bottom: 1rem;

@@ -109,7 +109,7 @@
    * precise-match-then-bucket-fallback algorithm. Never throws; returns
    * { quote: <item>|null, message: <string>|null }.
    */
-  function pickKoQuote(data, hhmm) {
+  function pickKoQuote(data, hhmm, preferOriginal) {
     try {
       if (!data) return { quote: null, message: "아직 문장이 없습니다." };
 
@@ -125,6 +125,14 @@
           return item.ampm === "unknown" || item.ampm === currentAmpm;
         });
         var pool = filtered.length > 0 ? filtered : preciseList;
+
+        if (preferOriginal) {
+          var originals = pool.filter(function (item) {
+            return item.kind === "원문";
+          });
+          if (originals.length > 0) pool = originals;
+        }
+
         return { quote: pickRandom(pool), message: null };
       }
 
@@ -212,8 +220,12 @@
     }
     var item = state.currentQuote;
     quoteEl.innerHTML = renderQuoteHtml(item.q, item.t);
-    sourceEl.innerHTML =
-      escapeHtml(item.title) + " · " + escapeHtml(item.author);
+    var sourceHtml = escapeHtml(item.title) + " · " + escapeHtml(item.author);
+    if (item.kind === "역") {
+      sourceHtml +=
+        ' <span class="badge-trans" title="번역" aria-label="번역">역</span>';
+    }
+    sourceEl.innerHTML = sourceHtml;
   }
 
   function fadeSwap(fn) {
@@ -234,13 +246,20 @@
     var hhmm = formatHHMM(now);
     if (digitalClockEl) digitalClockEl.textContent = formatKoreanClock(now);
 
-    var result = pickKoQuote(data, hhmm);
+    var result = pickKoQuote(data, hhmm, true);
     state.currentQuote = result.quote;
     renderCurrentQuote(result.message);
   }
 
   function shuffleQuote() {
-    loadForNow();
+    var data = getData();
+    var now = new Date();
+    var hhmm = formatHHMM(now);
+    if (digitalClockEl) digitalClockEl.textContent = formatKoreanClock(now);
+
+    var result = pickKoQuote(data, hhmm, false);
+    state.currentQuote = result.quote;
+    renderCurrentQuote(result.message);
   }
 
   function scheduleNextTick() {
