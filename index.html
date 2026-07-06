@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>작가시계</title>
+  <link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+  <div id="controls">
+    <button id="theme-toggle" type="button" aria-label="테마: 자동">자동</button>
+  </div>
+
+  <main id="stage">
+    <p id="quote" role="text"></p>
+    <p id="source"></p>
+  </main>
+
+  <div id="digital-clock" aria-hidden="true"></div>
+
+  <script src="data/ko_quotes.js"></script>
+  <script src="assets/app.js"></script>
+</body>
+</html>

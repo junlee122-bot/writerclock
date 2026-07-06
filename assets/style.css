@@ -1,0 +1,144 @@
+:root {
+  --bg: #f6efe1;
+  --fg: #2c241b;
+  --muted: #7a6f5d;
+  --accent: #8a5a2b;
+  --highlight-bg: rgba(138, 90, 43, 0.16);
+  --border: rgba(44, 36, 27, 0.18);
+  color-scheme: light dark;
+}
+
+:root.theme-dark {
+  --bg: #1b1a17;
+  --fg: #ece5d6;
+  --muted: #a89d89;
+  --accent: #d8b171;
+  --highlight-bg: rgba(216, 177, 113, 0.18);
+  --border: rgba(236, 229, 214, 0.18);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.theme-light):not(.theme-dark) {
+    --bg: #1b1a17;
+    --fg: #ece5d6;
+    --muted: #a89d89;
+    --accent: #d8b171;
+    --highlight-bg: rgba(216, 177, 113, 0.18);
+    --border: rgba(236, 229, 214, 0.18);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: "AppleMyungjo", "Apple Myungjo", "Batang", "바탕", "Nanum Myeongjo", serif;
+  transition: background-color 0.4s ease, color 0.4s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 2rem 1.25rem;
+  cursor: pointer;
+}
+
+#stage {
+  max-width: 40em;
+  width: 100%;
+  text-align: center;
+  transition: opacity 0.22s ease;
+}
+
+#stage.fade-out {
+  opacity: 0;
+}
+
+#quote {
+  max-width: 34em;
+  margin-left: auto;
+  margin-right: auto;
+  font-size: clamp(1.25rem, 2.6vw + 0.6rem, 2.1rem);
+  line-height: 1.55;
+  margin-bottom: 1rem;
+}
+
+#quote .tp {
+  color: var(--accent);
+  font-style: italic;
+}
+
+#source {
+  font-size: 0.95rem;
+  color: var(--muted);
+  font-style: italic;
+}
+
+#digital-clock {
+  position: fixed;
+  bottom: 1rem;
+  left: 1rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+  opacity: 0.6;
+  letter-spacing: 0.05em;
+  user-select: none;
+}
+
+#controls {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+#theme-toggle {
+  font-family: inherit;
+  font-size: 0.8rem;
+  color: var(--fg);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.3rem 0.85rem;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+#theme-toggle:hover,
+#theme-toggle:focus-visible {
+  background: var(--highlight-bg);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (max-width: 480px) {
+  #quote {
+    font-size: 1.15rem;
+  }
+
+  #controls {
+    top: 0.5rem;
+    right: 0.5rem;
+    font-size: 0.72rem;
+  }
+
+  #digital-clock {
+    bottom: 0.5rem;
+    left: 0.5rem;
+  }
+}
