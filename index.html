@@ -18,7 +18,29 @@
   <div id="controls">
     <button id="theme-toggle" type="button" aria-label="테마: 자동">자동</button>
     <button id="dock-toggle" type="button" aria-label="거치 모드 꺼짐">거치 모드</button>
+    <button id="save-toggle" type="button" aria-label="문장 저장" aria-pressed="false">♡</button>
+    <button id="share-toggle" type="button" aria-label="문장 공유">공유</button>
     <button id="fullscreen-toggle" type="button" aria-label="전체화면" hidden>전체화면</button>
+    <button id="settings-toggle" type="button" aria-label="설정" aria-haspopup="true" aria-expanded="false">설정</button>
+  </div>
+
+  <div id="settings-panel" role="dialog" aria-label="설정 패널" hidden>
+    <div class="settings-row">
+      <label for="dim-slider">밝기 조절</label>
+      <input type="range" id="dim-slider" min="0" max="0.8" step="0.05" value="0" aria-label="화면 어둡게 하기" />
+    </div>
+    <div class="settings-row">
+      <span id="font-scale-label">글자 크기</span>
+      <div class="font-scale-group" role="group" aria-labelledby="font-scale-label">
+        <button type="button" class="font-scale-btn" data-scale="small" aria-label="글자 작게" aria-pressed="false">작게</button>
+        <button type="button" class="font-scale-btn" data-scale="normal" aria-label="글자 보통" aria-pressed="true">보통</button>
+        <button type="button" class="font-scale-btn" data-scale="large" aria-label="글자 크게" aria-pressed="false">크게</button>
+      </div>
+    </div>
+    <div class="settings-row settings-row-favorites">
+      <span id="favorites-label">저장한 문장</span>
+      <div id="favorites-list" role="list" aria-labelledby="favorites-label"></div>
+    </div>
   </div>
 
   <main id="stage">

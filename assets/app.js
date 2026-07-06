@@ -105,6 +105,20 @@
   }
 
   /**
+   * Filter a precise[hhmm] list down to items matching the current am/pm,
+   * falling back to the full list if the filter would empty it out.
+   * Shared by pickKoQuote and buildShufflePool so the am/pm rule lives
+   * in one place.
+   */
+  function filteredPrecise(preciseList, hhmm) {
+    var currentAmpm = ampmOf(hhmm);
+    var filtered = preciseList.filter(function (item) {
+      return item.ampm === "unknown" || item.ampm === currentAmpm;
+    });
+    return filtered.length > 0 ? filtered : preciseList;
+  }
+
+  /**
    * Pick one Korean quote for the given "HH:MM" time, following the
    * precise-match-then-bucket-fallback algorithm. Never throws; returns
    * { quote: <item>|null, message: <string>|null }.
@@ -120,11 +134,7 @@
       // 1. precise minute match, filtered by am/pm.
       var preciseList = precise[hhmm];
       if (Array.isArray(preciseList) && preciseList.length > 0) {
-        var currentAmpm = ampmOf(hhmm);
-        var filtered = preciseList.filter(function (item) {
-          return item.ampm === "unknown" || item.ampm === currentAmpm;
-        });
-        var pool = filtered.length > 0 ? filtered : preciseList;
+        var pool = filteredPrecise(preciseList, hhmm);
 
         if (preferOriginal) {
           var originals = pool.filter(function (item) {
@@ -157,13 +167,105 @@
     }
   }
 
+  /**
+   * Build the shuffle candidate pool for a given "HH:MM" time: precise[hhmm]
+   * items only (am/pm filtered, no preferOriginal bias). The quote's stated
+   * time must match the actual clock time, so daypart buckets are never
+   * mixed in here (that would show a quote timestamped for a different
+   * minute). If this minute has no precise entries at all, the caller falls
+   * back to pickKoQuote's own adjacent-bucket/any-bucket path. Never throws;
+   * returns an array (possibly empty).
+   */
+  function buildShufflePool(data, hhmm) {
+    if (!data) return [];
+    var precise = data.precise || {};
+
+    var preciseList = precise[hhmm];
+    if (Array.isArray(preciseList) && preciseList.length > 0) {
+      return filteredPrecise(preciseList, hhmm);
+    }
+
+    return [];
+  }
+
+  /** Stable signature for a quote item, used for recent-shown tracking. */
+  function quoteSignature(item) {
+    var title = item.title || "";
+    var q = String(item.q || "").slice(0, 30);
+    return title + "|" + q;
+  }
+
+  /**
+   * Pick one item from `pool` avoiding signatures already present in the
+   * `recentSigs` Set. If the whole pool is already covered, the set is
+   * cleared and a fresh pick is made from the full pool. Mutates
+   * `recentSigs` in place (adds the chosen signature, trims oldest entries
+   * beyond `maxRecent`). Returns null if pool is empty.
+   */
+  function pickShuffle(pool, recentSigs, maxRecent) {
+    if (!Array.isArray(pool) || pool.length === 0) return null;
+
+    var available = pool.filter(function (item) {
+      return !recentSigs.has(quoteSignature(item));
+    });
+    if (available.length === 0) {
+      recentSigs.clear();
+      available = pool;
+    }
+
+    var chosen = pickRandom(available);
+    recentSigs.add(quoteSignature(chosen));
+    while (recentSigs.size > maxRecent) {
+      recentSigs.delete(recentSigs.values().next().value);
+    }
+    return chosen;
+  }
+
+  /**
+   * Pure favorites-toggle helper: given the current saved-favorites list and
+   * a quote item, returns a new list with the item added (if not already
+   * present, by quoteSignature) or removed (if already present). Never
+   * mutates `list`. Used by both the browser UI and node tests.
+   */
+  function toggleFavoriteList(list, item) {
+    var sig = quoteSignature(item);
+    var idx = -1;
+    for (var i = 0; i < list.length; i++) {
+      if (quoteSignature(list[i]) === sig) {
+        idx = i;
+        break;
+      }
+    }
+    var next = list.slice();
+    if (idx !== -1) {
+      next.splice(idx, 1);
+    } else {
+      next.push({
+        t: item.t,
+        q: item.q,
+        title: item.title,
+        author: item.author,
+        kind: item.kind,
+        time: item.time,
+        savedAt: Date.now(),
+      });
+    }
+    return next;
+  }
+
   var core = {
     escapeHtml: escapeHtml,
     renderQuoteHtml: renderQuoteHtml,
     formatHHMM: formatHHMM,
     formatKoreanClock: formatKoreanClock,
     pickRandom: pickRandom,
+    findBucketForTime: findBucketForTime,
+    filteredPrecise: filteredPrecise,
     pickKoQuote: pickKoQuote,
+    buildShufflePool: buildShufflePool,
+    quoteSignature: quoteSignature,
+    pickShuffle: pickShuffle,
+    toggleFavoriteList: toggleFavoriteList,
   };
 
   if (typeof module !== "undefined" && module.exports) {
@@ -177,7 +279,14 @@
 
   var THEME_KEY = "authorClockTheme"; // "auto" | "light" | "dark"
   var DOCK_MODE_KEY = "authorClockDockMode"; // "on" | "off"
+  var MANUAL_DIM_KEY = "authorClockManualDim"; // "0".."0.8"
+  var FONT_SCALE_KEY = "authorClockFontScale"; // "small" | "normal" | "large"
+  var FAVORITES_KEY = "authorClockFavorites"; // JSON array of saved quote items
   var CONTROLS_IDLE_MS = 3500;
+  var SHUFFLE_RECENT_MAX = 30;
+  var FONT_SCALE_MAP = { small: 0.85, normal: 1, large: 1.2 };
+  var CARD_FONT_STACK = '"AppleMyungjo","Apple Myungjo","Batang","Nanum Myeongjo",serif';
+  var CARD_GOLD = "#c8963e";
 
   var quoteEl = document.getElementById("quote");
   var sourceEl = document.getElementById("source");
@@ -188,13 +297,22 @@
   var dockToggleEl = document.getElementById("dock-toggle");
   var fullscreenToggleEl = document.getElementById("fullscreen-toggle");
   var nightDimEl = document.getElementById("night-dim");
+  var settingsToggleEl = document.getElementById("settings-toggle");
+  var settingsPanelEl = document.getElementById("settings-panel");
+  var dimSliderEl = document.getElementById("dim-slider");
+  var saveToggleEl = document.getElementById("save-toggle");
+  var shareToggleEl = document.getElementById("share-toggle");
+  var favoritesListEl = document.getElementById("favorites-list");
+  var fontScaleBtns = settingsPanelEl
+    ? Array.prototype.slice.call(settingsPanelEl.querySelectorAll(".font-scale-btn"))
+    : [];
 
   var wakeLockSentinel = null;
   var controlsHideTimer = null;
 
   var state = {
     currentQuote: null,
-    lastPool: [],
+    recentSigs: new Set(),
   };
 
   function getData() {
@@ -222,6 +340,7 @@
   }
 
   function renderCurrentQuote(message) {
+    updateSaveButtonState();
     if (!state.currentQuote) {
       quoteEl.textContent = message || "아직 문장이 없습니다.";
       sourceEl.textContent = "";
@@ -262,6 +381,318 @@
     }, 220);
   }
 
+  /** Read the saved-favorites array from localStorage. Never throws. */
+  function loadFavoritesRaw() {
+    try {
+      var raw = localStorage.getItem(FAVORITES_KEY);
+      var parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function saveFavoritesRaw(list) {
+    localStorage.setItem(FAVORITES_KEY, JSON.stringify(list));
+  }
+
+  function isCurrentFavorited() {
+    if (!state.currentQuote) return false;
+    var list = loadFavoritesRaw();
+    var sig = quoteSignature(state.currentQuote);
+    return list.some(function (item) {
+      return quoteSignature(item) === sig;
+    });
+  }
+
+  function updateSaveButtonState() {
+    if (!saveToggleEl) return;
+    var fav = isCurrentFavorited();
+    saveToggleEl.setAttribute("aria-pressed", fav ? "true" : "false");
+    saveToggleEl.classList.toggle("is-active", fav);
+    saveToggleEl.textContent = fav ? "♥" : "♡";
+    saveToggleEl.setAttribute("aria-label", fav ? "저장 해제" : "문장 저장");
+  }
+
+  function toggleFavorite() {
+    if (!state.currentQuote) return;
+    var list = toggleFavoriteList(loadFavoritesRaw(), state.currentQuote);
+    saveFavoritesRaw(list);
+    updateSaveButtonState();
+    renderFavoritesList();
+  }
+
+  /** Render the "저장한 문장" list inside the settings panel, newest first. */
+  function renderFavoritesList() {
+    if (!favoritesListEl) return;
+    var list = loadFavoritesRaw();
+    if (list.length === 0) {
+      favoritesListEl.innerHTML = '<p class="favorites-empty">저장한 문장이 없습니다.</p>';
+      return;
+    }
+    var html = "";
+    for (var i = list.length - 1; i >= 0; i--) {
+      var item = list[i];
+      var title = item.title || "";
+      var author = item.author || "";
+      var label = title && author ? title + " · " + author : title || author || "";
+      var plainQ = String(item.q || "").replace(/<br\s*\/?>/gi, " ");
+      var preview = plainQ.slice(0, 28);
+      if (plainQ.length > 28) preview += "…";
+      var lineText = preview + (label ? " · " + label : "");
+      html +=
+        '<div class="favorite-item-row">' +
+        '<button type="button" class="favorite-item" data-index="' +
+        i +
+        '" title="' +
+        escapeHtml(lineText) +
+        '">' +
+        escapeHtml(lineText) +
+        "</button>" +
+        '<button type="button" class="favorite-delete" data-index="' +
+        i +
+        '" aria-label="삭제">×</button>' +
+        "</div>";
+    }
+    favoritesListEl.innerHTML = html;
+  }
+
+  function setupFavoritesList() {
+    if (!favoritesListEl) return;
+    favoritesListEl.addEventListener("click", function (e) {
+      var delBtn = e.target.closest(".favorite-delete");
+      if (delBtn) {
+        var delIdx = parseInt(delBtn.getAttribute("data-index"), 10);
+        var list = loadFavoritesRaw();
+        if (delIdx >= 0 && delIdx < list.length) {
+          list.splice(delIdx, 1);
+          saveFavoritesRaw(list);
+          renderFavoritesList();
+          updateSaveButtonState();
+        }
+        return;
+      }
+      var itemBtn = e.target.closest(".favorite-item");
+      if (itemBtn) {
+        var idx = parseInt(itemBtn.getAttribute("data-index"), 10);
+        var chosen = loadFavoritesRaw()[idx];
+        if (chosen) {
+          state.currentQuote = chosen;
+          renderCurrentQuote(null);
+        }
+      }
+    });
+  }
+
+  function isDarkTheme() {
+    var root = document.documentElement;
+    if (root.classList.contains("theme-dark")) return true;
+    if (root.classList.contains("theme-light")) return false;
+    return !!(window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+  }
+
+  /**
+   * Split a quote's raw text (which may contain literal "<br>" line breaks,
+   * same convention as renderQuoteHtml) into a flat token stream of
+   * {type:"break"} and {type:"char", ch, hl} entries, marking the first
+   * case-insensitive match of `t` as highlighted.
+   */
+  function buildQuoteRuns(q, t) {
+    var raw = String(q || "");
+    var runs;
+    if (t) {
+      var lower = raw.toLowerCase();
+      var idx = lower.indexOf(String(t).toLowerCase());
+      if (idx !== -1) {
+        runs = [
+          { text: raw.slice(0, idx), hl: false },
+          { text: raw.slice(idx, idx + t.length), hl: true },
+          { text: raw.slice(idx + t.length), hl: false },
+        ];
+      } else {
+        runs = [{ text: raw, hl: false }];
+      }
+    } else {
+      runs = [{ text: raw, hl: false }];
+    }
+
+    var tokens = [];
+    runs.forEach(function (run) {
+      var parts = run.text.split(/<br\s*\/?>/gi);
+      parts.forEach(function (part, i) {
+        if (i > 0) tokens.push({ type: "break" });
+        for (var j = 0; j < part.length; j++) {
+          tokens.push({ type: "char", ch: part[j], hl: run.hl });
+        }
+      });
+    });
+    return tokens;
+  }
+
+  /** Word/char-level wrap of `tokens` to fit `maxWidth`, using canvas metrics. */
+  function wrapCardTokens(ctx, tokens, maxWidth, fontNormal, fontItalic) {
+    var lines = [];
+    var current = [];
+    var currentWidth = 0;
+    tokens.forEach(function (tok) {
+      if (tok.type === "break") {
+        lines.push(current);
+        current = [];
+        currentWidth = 0;
+        return;
+      }
+      if (tok.ch === " " && current.length === 0) return; // no leading space
+      ctx.font = tok.hl ? fontItalic : fontNormal;
+      var w = ctx.measureText(tok.ch).width;
+      if (currentWidth + w > maxWidth && current.length > 0) {
+        lines.push(current);
+        current = [];
+        currentWidth = 0;
+        if (tok.ch === " ") return;
+      }
+      current.push({ ch: tok.ch, hl: tok.hl, w: w });
+      currentWidth += w;
+    });
+    lines.push(current);
+    return lines;
+  }
+
+  /** Find the largest font size (down to a floor) whose wrapped lines fit maxHeight. */
+  function fitCardText(ctx, tokens, maxWidth, maxHeight) {
+    var fontSize = 64;
+    var minFontSize = 30;
+    var lineHeightRatio = 1.5;
+    var fontNormal, fontItalic, lines, lineHeight;
+    while (fontSize >= minFontSize) {
+      fontNormal = "400 " + fontSize + "px " + CARD_FONT_STACK;
+      fontItalic = "italic 400 " + fontSize + "px " + CARD_FONT_STACK;
+      lines = wrapCardTokens(ctx, tokens, maxWidth, fontNormal, fontItalic);
+      lineHeight = fontSize * lineHeightRatio;
+      if (lines.length * lineHeight <= maxHeight) {
+        return { lines: lines, lineHeight: lineHeight, fontNormal: fontNormal, fontItalic: fontItalic };
+      }
+      fontSize -= 4;
+    }
+    fontNormal = "400 " + minFontSize + "px " + CARD_FONT_STACK;
+    fontItalic = "italic 400 " + minFontSize + "px " + CARD_FONT_STACK;
+    lines = wrapCardTokens(ctx, tokens, maxWidth, fontNormal, fontItalic);
+    lineHeight = minFontSize * lineHeightRatio;
+    return { lines: lines, lineHeight: lineHeight, fontNormal: fontNormal, fontItalic: fontItalic };
+  }
+
+  /** Draw a 1080x1350 share card for `item` and return the canvas. */
+  function drawShareCard(item, dark) {
+    var canvas = document.createElement("canvas");
+    canvas.width = 1080;
+    canvas.height = 1350;
+    var ctx = canvas.getContext("2d");
+
+    var bg = dark ? "#1b1a17" : "#f6efe1";
+    var fg = dark ? "#ece5d6" : "#2c241b";
+    var muted = dark ? "#a89d89" : "#7a6f5d";
+
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    var marginX = 90;
+    var topY = 170;
+    var bottomReserved = 230;
+    var maxWidth = canvas.width - marginX * 2;
+    var maxHeight = canvas.height - topY - bottomReserved;
+
+    var tokens = buildQuoteRuns(item.q, item.t);
+    var fit = fitCardText(ctx, tokens, maxWidth, maxHeight);
+    var totalTextHeight = fit.lines.length * fit.lineHeight;
+    var startY = topY + Math.max(0, (maxHeight - totalTextHeight) / 2) + fit.lineHeight * 0.72;
+
+    ctx.textBaseline = "alphabetic";
+    fit.lines.forEach(function (line, li) {
+      var lineWidth = line.reduce(function (sum, c) {
+        return sum + c.w;
+      }, 0);
+      var x = (canvas.width - lineWidth) / 2;
+      var y = startY + li * fit.lineHeight;
+      line.forEach(function (c) {
+        ctx.font = c.hl ? fit.fontItalic : fit.fontNormal;
+        ctx.fillStyle = c.hl ? CARD_GOLD : fg;
+        ctx.fillText(c.ch, x, y);
+        x += c.w;
+      });
+    });
+
+    var title = item.title || "";
+    var author = item.author || "";
+    var sourceText = title && author ? title + " · " + author : title || author || "";
+    if (item.kind === "역") sourceText += " · 역";
+
+    ctx.textAlign = "center";
+    ctx.fillStyle = muted;
+    ctx.font = "400 32px " + CARD_FONT_STACK;
+    ctx.fillText(sourceText, canvas.width / 2, canvas.height - 150);
+
+    ctx.strokeStyle = dark ? "rgba(236,229,214,0.18)" : "rgba(44,36,27,0.18)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(canvas.width / 2 - 60, canvas.height - 190);
+    ctx.lineTo(canvas.width / 2 + 60, canvas.height - 190);
+    ctx.stroke();
+
+    ctx.globalAlpha = 0.75;
+    ctx.font = "300 24px " + CARD_FONT_STACK;
+    ctx.fillText("작가시계", canvas.width / 2, canvas.height - 90);
+    ctx.globalAlpha = 1;
+    ctx.textAlign = "left";
+
+    return canvas;
+  }
+
+  function canvasToBlob(canvas) {
+    return new Promise(function (resolve, reject) {
+      canvas.toBlob(function (blob) {
+        if (blob) resolve(blob);
+        else reject(new Error("toBlob failed"));
+      }, "image/png");
+    });
+  }
+
+  function downloadBlob(blob) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = "작가시계.png";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () {
+      URL.revokeObjectURL(url);
+    }, 1000);
+  }
+
+  /** Share `blob` via the Web Share API if a file share is supported, else download it. */
+  function deliverShareBlob(blob) {
+    var file = null;
+    try {
+      file = new File([blob], "작가시계.png", { type: "image/png" });
+    } catch (e) {
+      file = null;
+    }
+    if (file && navigator.canShare && navigator.share && navigator.canShare({ files: [file] })) {
+      return navigator.share({ files: [file], title: "작가시계" }).catch(function () {
+        downloadBlob(blob);
+      });
+    }
+    downloadBlob(blob);
+    return Promise.resolve();
+  }
+
+  function shareCurrentQuote() {
+    if (!state.currentQuote) return;
+    var canvas = drawShareCard(state.currentQuote, isDarkTheme());
+    canvasToBlob(canvas)
+      .then(deliverShareBlob)
+      .catch(function () {});
+  }
+
   function loadForNow() {
     var data = getData();
     var now = new Date();
@@ -279,9 +710,19 @@
     var hhmm = formatHHMM(now);
     if (digitalClockEl) digitalClockEl.textContent = formatKoreanClock(now);
 
-    var result = pickKoQuote(data, hhmm, false);
-    state.currentQuote = result.quote;
-    renderCurrentQuote(result.message);
+    var pool = buildShufflePool(data, hhmm);
+    if (pool.length === 0) {
+      // No precise/bucket union available for this minute: fall back to
+      // the same adjacent-bucket/"nothing available" path pickKoQuote uses.
+      var fallback = pickKoQuote(data, hhmm, false);
+      state.currentQuote = fallback.quote;
+      renderCurrentQuote(fallback.message);
+      return;
+    }
+
+    var chosen = pickShuffle(pool, state.recentSigs, SHUFFLE_RECENT_MAX);
+    state.currentQuote = chosen;
+    renderCurrentQuote(chosen ? null : "아직 문장이 없습니다.");
   }
 
   /**
@@ -302,14 +743,44 @@
     return 0.45 * ratio;
   }
 
+  /**
+   * Effective dim opacity: the manual slider value acts as a floor that
+   * always applies (dock on or off), combined with the automatic
+   * dock-only night dim via max() so neither one is lost.
+   */
+  function effectiveNightDim(date) {
+    var manual = parseFloat(localStorage.getItem(MANUAL_DIM_KEY) || "0") || 0;
+    var dockOn = localStorage.getItem(DOCK_MODE_KEY) === "on";
+    var auto = dockOn ? computeNightDimOpacity(date) : 0;
+    return Math.max(manual, auto);
+  }
+
   function applyNightDim() {
     if (!nightDimEl) return;
+    nightDimEl.style.opacity = String(effectiveNightDim(new Date()));
+  }
+
+  /**
+   * OLED burn-in mitigation: while dock mode is on, drift #stage and
+   * #digital-clock within a small translate() range using a smooth
+   * transition, following a Lissajous-like sweep driven by wall-clock
+   * time. Snaps back to translate(0,0) when dock mode is off.
+   */
+  function applyBurnInShift() {
     var dockOn = localStorage.getItem(DOCK_MODE_KEY) === "on";
     if (!dockOn) {
-      nightDimEl.style.opacity = "0";
+      if (stageEl) stageEl.style.transform = "translate(0px, 0px)";
+      if (digitalClockEl) digitalClockEl.style.transform = "translate(0px, 0px)";
       return;
     }
-    nightDimEl.style.opacity = String(computeNightDimOpacity(new Date()));
+    var t = Date.now() / 60000; // slow drift, minute-scale period
+    var vw = window.innerWidth / 100;
+    var vh = window.innerHeight / 100;
+    var x = Math.sin(t * 0.9) * 3 * vw;
+    var y = Math.cos(t * 0.6) * 3 * vh;
+    var transform = "translate(" + x.toFixed(2) + "px, " + y.toFixed(2) + "px)";
+    if (stageEl) stageEl.style.transform = transform;
+    if (digitalClockEl) digitalClockEl.style.transform = transform;
   }
 
   function requestWakeLock() {
@@ -375,12 +846,46 @@
     updateLabel();
   }
 
+  function isSettingsOpen() {
+    return !!(settingsPanelEl && !settingsPanelEl.hidden);
+  }
+
+  function openSettingsPanel() {
+    if (!settingsPanelEl) return;
+    settingsPanelEl.hidden = false;
+    if (settingsToggleEl) settingsToggleEl.setAttribute("aria-expanded", "true");
+    renderFavoritesList();
+    resetControlsHideTimer();
+  }
+
+  function closeSettingsPanel() {
+    if (!settingsPanelEl) return;
+    settingsPanelEl.hidden = true;
+    if (settingsToggleEl) settingsToggleEl.setAttribute("aria-expanded", "false");
+    resetControlsHideTimer();
+  }
+
+  function toggleSettingsPanel() {
+    if (isSettingsOpen()) closeSettingsPanel();
+    else openSettingsPanel();
+  }
+
+  function applyFontScale(scaleKey) {
+    var scale = FONT_SCALE_MAP[scaleKey] || FONT_SCALE_MAP.normal;
+    document.documentElement.style.setProperty("--quote-scale", String(scale));
+    fontScaleBtns.forEach(function (btn) {
+      var active = btn.getAttribute("data-scale") === scaleKey;
+      btn.setAttribute("aria-pressed", active ? "true" : "false");
+    });
+  }
+
   function resetControlsHideTimer() {
     if (!controlsEl) return;
     controlsEl.classList.remove("controls-hidden");
     if (controlsHideTimer) clearTimeout(controlsHideTimer);
     var dockOn = localStorage.getItem(DOCK_MODE_KEY) === "on";
     if (!dockOn) return;
+    if (isSettingsOpen()) return;
     controlsHideTimer = setTimeout(function () {
       controlsEl.classList.add("controls-hidden");
     }, CONTROLS_IDLE_MS);
@@ -409,6 +914,7 @@
       releaseWakeLock();
     }
     applyNightDim();
+    applyBurnInShift();
     resetControlsHideTimer();
   }
 
@@ -431,6 +937,7 @@
     setTimeout(function () {
       fadeSwap(loadForNow);
       applyNightDim();
+      applyBurnInShift();
       scheduleNextTick();
     }, msToNextMinute);
   }
@@ -447,19 +954,67 @@
       dockToggleEl.addEventListener("click", toggleDockMode);
     }
 
+    if (saveToggleEl) {
+      saveToggleEl.addEventListener("click", toggleFavorite);
+    }
+
+    if (shareToggleEl) {
+      shareToggleEl.addEventListener("click", shareCurrentQuote);
+    }
+
+    setupFavoritesList();
+
+    if (settingsToggleEl) {
+      settingsToggleEl.addEventListener("click", toggleSettingsPanel);
+    }
+
+    if (dimSliderEl) {
+      dimSliderEl.addEventListener("input", function () {
+        localStorage.setItem(MANUAL_DIM_KEY, dimSliderEl.value);
+        applyNightDim();
+      });
+    }
+
+    fontScaleBtns.forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var scaleKey = btn.getAttribute("data-scale");
+        localStorage.setItem(FONT_SCALE_KEY, scaleKey);
+        applyFontScale(scaleKey);
+      });
+    });
+
     document.addEventListener("click", function (e) {
       if (themeToggleEl && themeToggleEl.contains(e.target)) return;
       if (dockToggleEl && dockToggleEl.contains(e.target)) return;
+      if (saveToggleEl && saveToggleEl.contains(e.target)) return;
+      if (shareToggleEl && shareToggleEl.contains(e.target)) return;
       if (fullscreenToggleEl && fullscreenToggleEl.contains(e.target)) return;
+      if (settingsToggleEl && settingsToggleEl.contains(e.target)) return;
+      if (settingsPanelEl && settingsPanelEl.contains(e.target)) return;
+      if (isSettingsOpen()) {
+        closeSettingsPanel();
+        return;
+      }
       fadeSwap(shuffleQuote);
     });
 
     document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") {
+        if (isSettingsOpen()) closeSettingsPanel();
+        return;
+      }
+      if (isSettingsOpen()) return;
       if (e.code === "Space" || e.key === " ") {
         e.preventDefault();
         fadeSwap(shuffleQuote);
       }
     });
+
+    var savedManualDim = localStorage.getItem(MANUAL_DIM_KEY) || "0";
+    if (dimSliderEl) dimSliderEl.value = savedManualDim;
+
+    var savedFontScale = localStorage.getItem(FONT_SCALE_KEY) || "normal";
+    applyFontScale(savedFontScale);
 
     var savedDockMode = localStorage.getItem(DOCK_MODE_KEY) === "on" ? "on" : "off";
     applyDockMode(savedDockMode);

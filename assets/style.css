@@ -5,6 +5,7 @@
   --accent: #8a5a2b;
   --highlight-bg: rgba(138, 90, 43, 0.16);
   --border: rgba(44, 36, 27, 0.18);
+  --quote-scale: 1;
   color-scheme: light dark;
 }
 
@@ -55,7 +56,7 @@ body {
   max-width: 40em;
   width: 100%;
   text-align: center;
-  transition: opacity 0.22s ease;
+  transition: opacity 0.22s ease, transform 2s ease;
 }
 
 #stage.fade-out {
@@ -66,7 +67,7 @@ body {
   max-width: 34em;
   margin-left: auto;
   margin-right: auto;
-  font-size: clamp(1.25rem, 2.6vw + 0.6rem, 2.1rem);
+  font-size: calc(clamp(1.25rem, 2.6vw + 0.6rem, 2.1rem) * var(--quote-scale));
   line-height: 1.55;
   margin-bottom: 1rem;
 }
@@ -77,7 +78,7 @@ body {
 }
 
 #source {
-  font-size: 0.95rem;
+  font-size: calc(0.95rem * var(--quote-scale));
   color: var(--muted);
   font-style: italic;
 }
@@ -104,6 +105,7 @@ body {
   opacity: 0.6;
   letter-spacing: 0.05em;
   user-select: none;
+  transition: transform 2s ease;
 }
 
 #controls {
@@ -137,7 +139,10 @@ body {
 }
 
 #dock-toggle,
-#fullscreen-toggle {
+#fullscreen-toggle,
+#settings-toggle,
+#save-toggle,
+#share-toggle {
   font-family: inherit;
   font-size: 0.8rem;
   color: var(--fg);
@@ -152,11 +157,23 @@ body {
 #dock-toggle:hover,
 #dock-toggle:focus-visible,
 #fullscreen-toggle:hover,
-#fullscreen-toggle:focus-visible {
+#fullscreen-toggle:focus-visible,
+#settings-toggle:hover,
+#settings-toggle:focus-visible,
+#save-toggle:hover,
+#save-toggle:focus-visible,
+#share-toggle:hover,
+#share-toggle:focus-visible {
   background: var(--highlight-bg);
 }
 
-#dock-toggle.is-active {
+#dock-toggle.is-active,
+#save-toggle.is-active {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+#settings-toggle[aria-expanded="true"] {
   color: var(--accent);
   border-color: var(--accent);
 }
@@ -164,6 +181,138 @@ body {
 #controls.controls-hidden {
   opacity: 0;
   pointer-events: none;
+}
+
+#settings-panel {
+  position: fixed;
+  top: 3.4rem;
+  right: 1rem;
+  z-index: 12;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  padding: 0.9rem 1rem;
+  min-width: 220px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.14);
+  font-size: 0.85rem;
+}
+
+#settings-panel[hidden] {
+  display: none;
+}
+
+.settings-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 0.8rem;
+}
+
+.settings-row:last-child {
+  margin-bottom: 0;
+}
+
+.settings-row label,
+.settings-row span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+#dim-slider {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.font-scale-group {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.font-scale-btn {
+  flex: 1;
+  font-family: inherit;
+  font-size: 0.75rem;
+  color: var(--fg);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.font-scale-btn:hover,
+.font-scale-btn:focus-visible {
+  background: var(--highlight-bg);
+}
+
+.font-scale-btn[aria-pressed="true"] {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+#favorites-list {
+  max-height: 190px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.favorite-item-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.favorite-item {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  font-family: inherit;
+  font-size: 0.72rem;
+  color: var(--fg);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  padding: 0.35rem 0.5rem;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.favorite-item:hover,
+.favorite-item:focus-visible {
+  background: var(--highlight-bg);
+}
+
+.favorite-delete {
+  font-family: inherit;
+  font-size: 0.75rem;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  width: 1.6rem;
+  height: 1.6rem;
+  min-width: 1.6rem;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.favorite-delete:hover,
+.favorite-delete:focus-visible {
+  color: var(--fg);
+  background: var(--highlight-bg);
+}
+
+.favorites-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.75rem;
 }
 
 #night-dim {
@@ -183,7 +332,7 @@ body {
 
 @media (max-width: 480px) {
   #quote {
-    font-size: 1.15rem;
+    font-size: calc(1.15rem * var(--quote-scale));
   }
 
   #controls {
@@ -195,5 +344,11 @@ body {
   #digital-clock {
     bottom: 0.5rem;
     left: 0.5rem;
+  }
+
+  #settings-panel {
+    top: 2.9rem;
+    right: 0.5rem;
+    min-width: 190px;
   }
 }

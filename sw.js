@@ -1,7 +1,7 @@
 /* Author Clock service worker: offline cache-first app shell. */
 "use strict";
 
-var CACHE_NAME = "author-clock-v2";
+var CACHE_NAME = "author-clock-v3";
 var PRECACHE_URLS = [
   "./index.html",
   "assets/style.css",
