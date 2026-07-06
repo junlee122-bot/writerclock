@@ -110,11 +110,13 @@ body {
   position: fixed;
   top: 1rem;
   right: 1rem;
+  z-index: 11;
   display: flex;
   align-items: center;
   gap: 0.75rem;
   font-size: 0.8rem;
   color: var(--muted);
+  transition: opacity 0.6s ease;
 }
 
 #theme-toggle {
@@ -132,6 +134,46 @@ body {
 #theme-toggle:hover,
 #theme-toggle:focus-visible {
   background: var(--highlight-bg);
+}
+
+#dock-toggle,
+#fullscreen-toggle {
+  font-family: inherit;
+  font-size: 0.8rem;
+  color: var(--fg);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.3rem 0.85rem;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+#dock-toggle:hover,
+#dock-toggle:focus-visible,
+#fullscreen-toggle:hover,
+#fullscreen-toggle:focus-visible {
+  background: var(--highlight-bg);
+}
+
+#dock-toggle.is-active {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+#controls.controls-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+#night-dim {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.6s ease;
+  z-index: 10;
 }
 
 :focus-visible {

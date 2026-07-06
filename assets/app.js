@@ -176,12 +176,21 @@
   }
 
   var THEME_KEY = "authorClockTheme"; // "auto" | "light" | "dark"
+  var DOCK_MODE_KEY = "authorClockDockMode"; // "on" | "off"
+  var CONTROLS_IDLE_MS = 3500;
 
   var quoteEl = document.getElementById("quote");
   var sourceEl = document.getElementById("source");
   var digitalClockEl = document.getElementById("digital-clock");
   var themeToggleEl = document.getElementById("theme-toggle");
   var stageEl = document.getElementById("stage");
+  var controlsEl = document.getElementById("controls");
+  var dockToggleEl = document.getElementById("dock-toggle");
+  var fullscreenToggleEl = document.getElementById("fullscreen-toggle");
+  var nightDimEl = document.getElementById("night-dim");
+
+  var wakeLockSentinel = null;
+  var controlsHideTimer = null;
 
   var state = {
     currentQuote: null,
@@ -275,12 +284,153 @@
     renderCurrentQuote(result.message);
   }
 
+  /**
+   * Night dim overlay opacity for a given date: 0 outside 22:00-06:00,
+   * ramping linearly up to ~0.45 near midnight (wrap-around range).
+   */
+  function computeNightDimOpacity(date) {
+    var nowMinutes = date.getHours() * 60 + date.getMinutes();
+    var start = 22 * 60; // 22:00
+    var end = 6 * 60; // 06:00
+    var span = 1440 - start + end; // total wrap-around night length
+    var inNight = nowMinutes >= start || nowMinutes <= end;
+    if (!inNight) return 0;
+    var elapsed = nowMinutes >= start ? nowMinutes - start : 1440 - start + nowMinutes;
+    var midpoint = span / 2;
+    var distanceFromEdge = Math.min(elapsed, span - elapsed);
+    var ratio = distanceFromEdge / midpoint;
+    return 0.45 * ratio;
+  }
+
+  function applyNightDim() {
+    if (!nightDimEl) return;
+    var dockOn = localStorage.getItem(DOCK_MODE_KEY) === "on";
+    if (!dockOn) {
+      nightDimEl.style.opacity = "0";
+      return;
+    }
+    nightDimEl.style.opacity = String(computeNightDimOpacity(new Date()));
+  }
+
+  function requestWakeLock() {
+    if (!("wakeLock" in navigator)) return;
+    navigator.wakeLock
+      .request("screen")
+      .then(function (sentinel) {
+        wakeLockSentinel = sentinel;
+      })
+      .catch(function () {});
+  }
+
+  function releaseWakeLock() {
+    if (wakeLockSentinel) {
+      wakeLockSentinel.release().catch(function () {});
+      wakeLockSentinel = null;
+    }
+  }
+
+  function setupWakeLock() {
+    if (!("wakeLock" in navigator)) return;
+    if (localStorage.getItem(DOCK_MODE_KEY) === "on") requestWakeLock();
+    document.addEventListener("click", function () {
+      if (localStorage.getItem(DOCK_MODE_KEY) === "on") requestWakeLock();
+    });
+    document.addEventListener("visibilitychange", function () {
+      if (
+        document.visibilityState === "visible" &&
+        localStorage.getItem(DOCK_MODE_KEY) === "on"
+      ) {
+        requestWakeLock();
+      }
+    });
+  }
+
+  function setupFullscreenToggle() {
+    if (!fullscreenToggleEl) return;
+    var supported = !!(
+      document.documentElement.requestFullscreen && document.exitFullscreen
+    );
+    if (!supported) {
+      fullscreenToggleEl.hidden = true;
+      return;
+    }
+    fullscreenToggleEl.hidden = false;
+
+    function updateLabel() {
+      var isFullscreen = !!document.fullscreenElement;
+      var label = isFullscreen ? "창모드" : "전체화면";
+      fullscreenToggleEl.textContent = label;
+      fullscreenToggleEl.setAttribute("aria-label", label);
+    }
+
+    fullscreenToggleEl.addEventListener("click", function () {
+      if (document.fullscreenElement) {
+        document.exitFullscreen().catch(function () {});
+      } else {
+        document.documentElement.requestFullscreen().catch(function () {});
+      }
+    });
+
+    document.addEventListener("fullscreenchange", updateLabel);
+    updateLabel();
+  }
+
+  function resetControlsHideTimer() {
+    if (!controlsEl) return;
+    controlsEl.classList.remove("controls-hidden");
+    if (controlsHideTimer) clearTimeout(controlsHideTimer);
+    var dockOn = localStorage.getItem(DOCK_MODE_KEY) === "on";
+    if (!dockOn) return;
+    controlsHideTimer = setTimeout(function () {
+      controlsEl.classList.add("controls-hidden");
+    }, CONTROLS_IDLE_MS);
+  }
+
+  function setupControlsAutoHide() {
+    if (!controlsEl) return;
+    ["mousemove", "touchstart", "click", "keydown"].forEach(function (evt) {
+      document.addEventListener(evt, resetControlsHideTimer);
+    });
+    resetControlsHideTimer();
+  }
+
+  function applyDockMode(mode) {
+    var isOn = mode === "on";
+    if (dockToggleEl) {
+      dockToggleEl.classList.toggle("is-active", isOn);
+      dockToggleEl.setAttribute(
+        "aria-label",
+        isOn ? "거치 모드 켜짐" : "거치 모드 꺼짐"
+      );
+    }
+    if (isOn) {
+      requestWakeLock();
+    } else {
+      releaseWakeLock();
+    }
+    applyNightDim();
+    resetControlsHideTimer();
+  }
+
+  function toggleDockMode() {
+    var current = localStorage.getItem(DOCK_MODE_KEY) === "on" ? "on" : "off";
+    var next = current === "on" ? "off" : "on";
+    localStorage.setItem(DOCK_MODE_KEY, next);
+    applyDockMode(next);
+  }
+
+  function registerServiceWorker() {
+    if (!("serviceWorker" in navigator)) return;
+    navigator.serviceWorker.register("sw.js").catch(function () {});
+  }
+
   function scheduleNextTick() {
     var now = new Date();
     var msToNextMinute =
       (60 - now.getSeconds()) * 1000 - now.getMilliseconds();
     setTimeout(function () {
       fadeSwap(loadForNow);
+      applyNightDim();
       scheduleNextTick();
     }, msToNextMinute);
   }
@@ -293,8 +443,14 @@
       themeToggleEl.addEventListener("click", cycleTheme);
     }
 
+    if (dockToggleEl) {
+      dockToggleEl.addEventListener("click", toggleDockMode);
+    }
+
     document.addEventListener("click", function (e) {
       if (themeToggleEl && themeToggleEl.contains(e.target)) return;
+      if (dockToggleEl && dockToggleEl.contains(e.target)) return;
+      if (fullscreenToggleEl && fullscreenToggleEl.contains(e.target)) return;
       fadeSwap(shuffleQuote);
     });
 
@@ -304,6 +460,14 @@
         fadeSwap(shuffleQuote);
       }
     });
+
+    var savedDockMode = localStorage.getItem(DOCK_MODE_KEY) === "on" ? "on" : "off";
+    applyDockMode(savedDockMode);
+
+    setupWakeLock();
+    setupFullscreenToggle();
+    setupControlsAutoHide();
+    registerServiceWorker();
 
     loadForNow();
     scheduleNextTick();
