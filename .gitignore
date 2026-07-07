@@ -3,3 +3,6 @@
 .claude/state/
 notes/
 data/_trans/
+firmware/tools/*.ttf
+firmware/tools/font_ko_*.c
+firmware/tools/hangul_symbols.txt
