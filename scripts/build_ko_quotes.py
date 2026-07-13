@@ -1,21 +1,20 @@
 #!/usr/bin/env python3
-"""Build Korean Author Clock data from ko.wikisource public-domain literature.
+"""Build the Writer Clock Korean dataset deterministically.
 
-Absolute rule (see KO_SPEC.md): every emitted quote MUST be a verbatim substring
-of the RAW fetched wikisource text. Nothing is hand written, translated, or
-paraphrased. Each candidate sentence is verified with
-    normalize_ws(sentence) in normalize_ws(raw_source)
-and discarded on failure. Only authors dead by 1955 (public domain, 70y) are used.
+The canonical inputs are deliberately separate from generated output:
 
-Outputs (data/):
-    ko_quotes.js    window.AUTHOR_CLOCK_QUOTES_KO = {...};
-    ko_quotes.json  same object, pure JSON
-    ko_coverage.json  provenance + counts + substring_verified flag
-Raw sources cached at data/ko_sources/<title>.txt (reused unless --refresh).
+* data/ko_translations.json — one review-status-labeled translated entry for every minute.
+* data/ko_sources/*.txt — cached public-domain Korean Wikisource source text.
 
-Standard library only. Networking via urllib. No subprocess.
+The builder extracts conservative Korean originals, merges both inputs, verifies
+provenance and coverage, and writes ko_quotes.json/js plus ko_coverage.json.
+Running with --check never writes; it fails when committed generated files differ.
+Networking is opt-in with --refresh. Standard library only.
 """
 
+from __future__ import annotations
+
+import argparse
 import json
 import re
 import sys
@@ -24,19 +23,18 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-DATA_DIR = REPO_ROOT / "data"
-SRC_DIR = DATA_DIR / "ko_sources"
-QUOTES_JS = DATA_DIR / "ko_quotes.js"
+ROOT = Path(__file__).resolve().parent.parent
+DATA_DIR = ROOT / "data"
+SOURCE_DIR = DATA_DIR / "ko_sources"
+TRANSLATIONS_JSON = DATA_DIR / "ko_translations.json"
 QUOTES_JSON = DATA_DIR / "ko_quotes.json"
+QUOTES_JS = DATA_DIR / "ko_quotes.js"
 COVERAGE_JSON = DATA_DIR / "ko_coverage.json"
 
 RAW_URL = "https://ko.wikisource.org/w/index.php?title=%s&action=raw"
-USER_AGENT = "AuthorClockBot/1.0 (ko.wikisource public-domain corpus; contact rbals1012@gmail.com)"
+USER_AGENT = "WriterClockBot/2.0 (public-domain corpus; github.com/junlee122-bot/writerclock)"
+PD_CUTOFF_YEAR = 1955
 
-# Curated public-domain works. (title, author, death_year). death_year must be <= 1955.
-# subpage=True works are TOC pages on wikisource; their chapters live on subpages
-# and are fetched + concatenated. Titles corrected from live probing.
 WORKS = [
     ("운수 좋은 날", "현진건", 1943, False),
     ("빈처", "현진건", 1943, False),
@@ -63,58 +61,49 @@ WORKS = [
     ("태평천하", "채만식", 1950, True),
 ]
 
-PD_CUTOFF_YEAR = 1955
-
-# Display title for entries (strip disambiguation suffix like " (현진건)").
+ALL_MINUTES = [f"{hour:02d}:{minute:02d}" for hour in range(24) for minute in range(60)]
 DISAMBIG_RE = re.compile(r"\s*\([^)]*\)\s*$")
-
 REDIRECT_RE = re.compile(r"^\s*#(?:넘겨주기|REDIRECT)\s*\[\[([^\]]+)\]\]", re.IGNORECASE)
-
-
-def http_get_raw(title):
-    """Fetch raw wikitext for a page title. Returns text or None on 404/empty."""
-    url = RAW_URL % urllib.parse.quote(title)
-    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    try:
-        with urllib.request.urlopen(req, timeout=45) as resp:
-            data = resp.read().decode("utf-8")
-    except urllib.error.HTTPError as exc:
-        if exc.code == 404:
-            sys.stdout.write("  [skip] 404 for '%s'\n" % title)
-            return None
-        raise RuntimeError("HTTP error fetching '%s': %s" % (title, exc)) from exc
-    except urllib.error.URLError as exc:
-        raise RuntimeError("Network error fetching '%s': %s" % (title, exc)) from exc
-    if not data.strip():
-        sys.stdout.write("  [skip] empty body for '%s'\n" % title)
-        return None
-    return data
-
-
-def resolve_redirect(title, raw):
-    """Follow a single #redirect if present."""
-    m = REDIRECT_RE.match(raw)
-    if not m:
-        return raw
-    target = m.group(1).split("|")[0].strip()
-    sys.stdout.write("  [redirect] '%s' -> '%s'\n" % (title, target))
-    resolved = http_get_raw(target)
-    return resolved if resolved else raw
-
-
 SUBPAGE_LINK_RE = re.compile(r"\[\[\s*(/?[^\]|#]+?)\s*(?:\||\]\])")
 SKIP_LINK_PREFIX = ("분류:", "파일:", "File:", "Image:", "저자:", "글쓴이:", "위키백과", "s:", "w:")
 
 
-def find_subpages(title, raw):
-    """Extract chapter subpage titles from a TOC page."""
-    subs = []
-    seen = set()
-    for link in SUBPAGE_LINK_RE.findall(raw):
+def raw_url(title: str) -> str:
+    return RAW_URL % urllib.parse.quote(title)
+
+
+def cache_path(title: str) -> Path:
+    return SOURCE_DIR / (title.replace("/", "_") + ".txt")
+
+
+def fetch_raw(title: str) -> str | None:
+    request = urllib.request.Request(raw_url(title), headers={"User-Agent": USER_AGENT})
+    try:
+        with urllib.request.urlopen(request, timeout=45) as response:
+            text = response.read().decode("utf-8")
+    except urllib.error.HTTPError as error:
+        if error.code == 404:
+            return None
+        raise RuntimeError(f"HTTP error fetching {title!r}: {error}") from error
+    except urllib.error.URLError as error:
+        raise RuntimeError(f"Network error fetching {title!r}: {error}") from error
+    return text if text.strip() else None
+
+
+def resolve_redirect(title: str, text: str) -> str:
+    match = REDIRECT_RE.match(text)
+    if not match:
+        return text
+    target = match.group(1).split("|")[0].strip()
+    return fetch_raw(target) or text
+
+
+def find_subpages(title: str, text: str) -> list[str]:
+    found: list[str] = []
+    seen: set[str] = set()
+    for link in SUBPAGE_LINK_RE.findall(text):
         link = link.strip()
-        if any(link.startswith(p) for p in SKIP_LINK_PREFIX):
-            continue
-        if "/" not in link:
+        if any(link.startswith(prefix) for prefix in SKIP_LINK_PREFIX) or "/" not in link:
             continue
         if link.startswith("/"):
             resolved = title + "/" + link.strip("/")
@@ -124,43 +113,34 @@ def find_subpages(title, raw):
             continue
         if resolved not in seen:
             seen.add(resolved)
-            subs.append(resolved)
-    return subs
+            found.append(resolved)
+    return found
 
 
-def acquire_raw(title, is_subpage_toc, refresh):
-    """Return raw source text for a work, using/refreshing the on-disk cache."""
-    SRC_DIR.mkdir(parents=True, exist_ok=True)
-    cache = SRC_DIR / (title.replace("/", "_") + ".txt")
-    if cache.exists() and not refresh:
-        sys.stdout.write("  [cache] %s\n" % cache.name)
-        return cache.read_text(encoding="utf-8")
+def acquire_raw(title: str, toc: bool, refresh: bool) -> str:
+    path = cache_path(title)
+    if path.exists() and not refresh:
+        return path.read_text(encoding="utf-8")
+    if not refresh:
+        raise RuntimeError(f"Missing cached source {path}; use --refresh explicitly to fetch")
 
-    raw = http_get_raw(title)
-    if raw is None:
-        return None
-    raw = resolve_redirect(title, raw)
-
-    if is_subpage_toc:
-        subs = find_subpages(title, raw)
-        if not subs:
-            sys.stdout.write("  [warn] '%s' marked TOC but no subpages found\n" % title)
+    text = fetch_raw(title)
+    if text is None:
+        raise RuntimeError(f"No source returned for {title!r}")
+    text = resolve_redirect(title, text)
+    if toc:
         parts = []
-        for sub in subs:
-            body = http_get_raw(sub)
+        for page in find_subpages(title, text):
+            body = fetch_raw(page)
             if body:
                 parts.append(body)
-        if parts:
-            raw = "\n\n".join(parts)
-        else:
-            sys.stdout.write("  [skip] '%s' TOC yielded no chapter text\n" % title)
-            return None
+        if not parts:
+            raise RuntimeError(f"TOC source {title!r} contained no readable chapters")
+        text = "\n\n".join(parts)
+    SOURCE_DIR.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+    return text
 
-    cache.write_text(raw, encoding="utf-8")
-    return raw
-
-
-# ---- wikitext cleaning ----------------------------------------------------
 
 TEMPLATE_RE = re.compile(r"\{\{[^{}]*\}\}")
 TABLE_RE = re.compile(r"\{\|.*?\|\}", re.DOTALL)
@@ -168,67 +148,156 @@ COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
 REF_PAIR_RE = re.compile(r"<ref[^>]*>.*?</ref>", re.DOTALL | re.IGNORECASE)
 REF_SELF_RE = re.compile(r"<ref[^>]*/>", re.IGNORECASE)
 TAG_RE = re.compile(r"<[^>]+>")
-CAT_LINK_RE = re.compile(r"\[\[(?:분류|파일|File|Image|파일)\s*:[^\]]*\]\]", re.IGNORECASE)
+CAT_LINK_RE = re.compile(r"\[\[(?:분류|파일|File|Image)\s*:[^\]]*\]\]", re.IGNORECASE)
 PIPED_LINK_RE = re.compile(r"\[\[[^\]|]*\|([^\]]+)\]\]")
 PLAIN_LINK_RE = re.compile(r"\[\[([^\]]+)\]\]")
 HEADER_LINE_RE = re.compile(r"^\s*=+\s*.*?\s*=+\s*$", re.MULTILINE)
 LIST_MARK_RE = re.compile(r"^[\*#:;]+\s*", re.MULTILINE)
-BOLD5_RE = re.compile(r"'{5}")
-BOLD3_RE = re.compile(r"'{3}")
-ITAL2_RE = re.compile(r"'{2}")
 WS_RE = re.compile(r"\s+")
+SENT_SPLIT_RE = re.compile(r'([.!?…]+["\'”’)\]]*|”)')
 
 
-def clean_wikitext(raw):
-    """Strip markup, return list of prose paragraphs (whitespace collapsed)."""
+def normalize_ws(text: str) -> str:
+    return WS_RE.sub(" ", text).strip()
+
+
+def clean_wikitext(raw: str) -> list[str]:
     text = COMMENT_RE.sub("", raw)
     text = REF_PAIR_RE.sub("", text)
     text = REF_SELF_RE.sub("", text)
     text = TABLE_RE.sub("", text)
-    # Remove nested templates by repeated innermost matching.
-    prev = None
-    while prev != text:
-        prev = text
+    previous = None
+    while previous != text:
+        previous = text
         text = TEMPLATE_RE.sub("", text)
     text = CAT_LINK_RE.sub("", text)
-    text = PIPED_LINK_RE.sub(lambda m: m.group(1), text)
-    text = PLAIN_LINK_RE.sub(lambda m: m.group(1), text)
-    text = BOLD5_RE.sub("", text)
-    text = BOLD3_RE.sub("", text)
-    text = ITAL2_RE.sub("", text)
+    text = PIPED_LINK_RE.sub(lambda match: match.group(1), text)
+    text = PLAIN_LINK_RE.sub(lambda match: match.group(1), text)
+    text = re.sub(r"'{2,5}", "", text)
     text = HEADER_LINE_RE.sub("", text)
     text = TAG_RE.sub("", text)
     text = LIST_MARK_RE.sub("", text)
-
-    paragraphs = []
-    for block in re.split(r"\n\s*\n", text):
-        collapsed = WS_RE.sub(" ", block).strip()
-        if collapsed:
-            paragraphs.append(collapsed)
-    return paragraphs
+    return [normalize_ws(block) for block in re.split(r"\n\s*\n", text) if normalize_ws(block)]
 
 
-# ---- sentence splitting ---------------------------------------------------
-
-SENT_SPLIT_RE = re.compile(r'([.!?…]+["\'”’)\]]*|”)')
-MIN_LEN = 12
-MAX_LEN = 220
+def split_sentences(paragraph: str) -> list[str]:
+    marked = SENT_SPLIT_RE.sub(lambda match: match.group(1) + "\x00", paragraph)
+    return [part.strip() for part in marked.split("\x00") if 12 <= len(part.strip()) <= 220]
 
 
-def split_sentences(paragraph):
-    marked = SENT_SPLIT_RE.sub(lambda m: m.group(1) + "\x00", paragraph)
-    out = []
-    for chunk in marked.split("\x00"):
-        s = chunk.strip()
-        if MIN_LEN <= len(s) <= MAX_LEN:
-            out.append(s)
-    return out
+HOURS = {
+    "한": 1, "두": 2, "세": 3, "네": 4, "다섯": 5, "여섯": 6,
+    "일곱": 7, "여덟": 8, "아홉": 9, "열": 10, "열한": 11, "열두": 12,
+}
+ONES = {"일": 1, "이": 2, "삼": 3, "사": 4, "오": 5, "육": 6, "칠": 7, "팔": 8, "구": 9}
 
 
-# ---- time expression extraction ------------------------------------------
+def korean_minute_words() -> dict[str, int]:
+    words: dict[str, int] = {}
+    for minute in range(1, 60):
+        tens, ones = divmod(minute, 10)
+        value = ("" if tens == 0 else ("십" if tens == 1 else list(ONES)[tens - 1] + "십"))
+        if ones:
+            value += list(ONES)[ones - 1]
+        words[value] = minute
+    return words
+
+
+MINUTE_WORDS = korean_minute_words()
+HOUR_PATTERN = "|".join([
+    r"열\s*두", r"열\s*한", "다섯", "여섯", "일곱", "여덟", "아홉", "열", "한", "두", "세", "네"
+])
+MINUTE_PATTERN = "|".join(sorted((re.escape(word) for word in MINUTE_WORDS), key=len, reverse=True))
+RIGHT_CONTEXT = (
+    r"(?=$|[^가-힣]|(?:에야|에서|에는|에|가|는|은|를|부터|까지|쯤|께|경|나|도|엔|"
+    r"이었다|이었고|이었으며|이었는데|였다|였고|였으며|이고|이다|인|이)(?=$|[^가-힣]))"
+)
+HOUR_RE = re.compile(
+    rf"(?<![가-힣])(?P<hour>{HOUR_PATTERN})\s*시"
+    rf"(?:(?:\s*(?P<half>반))|(?:\s*(?P<minute>\d{{1,2}}|{MINUTE_PATTERN})\s*분))?"
+    + RIGHT_CONTEXT
+)
+DIRECT_MINUTE_AFTER_RE = re.compile(r"^\s*(?:가|를|는)?\s*(?:한\s*)?(?:\d{1,2}|" + MINUTE_PATTERN + r")\s*분")
+APPROXIMATE_RE = re.compile(
+    r"쯤|가량|무렵|직전|몇\s*분|되기\s*전|"
+    r"(?:한|십|이십|삼십|사십|오십|\d+)여\s*분|"
+    r"(?:좀|훨씬)?\s*(?:지나|지났|넘어|넘었|넘긴|넘어서)"
+)
+NON_TIME_HOUR_RE = re.compile(r"한시\s*(?:\(漢詩\)|한문|맛|공부|와)")
+AM_CUE_RE = re.compile(r"새벽|아침|오전")
+PM_CUE_RE = re.compile(r"오후|저녁")
+MIDNIGHT_RE = re.compile(r"자정")
+NOON_RE = re.compile(r"정오")
+NIGHT_RE = re.compile(r"(?<![가-힣])(?:한밤중|밤중|한밤|밤)(?!낮|새)")
+
+
+def hour_number(text: str) -> int:
+    return HOURS[re.sub(r"\s+", "", text)]
+
+
+def minute_number(text: str | None, half: bool) -> int:
+    if half:
+        return 30
+    if not text:
+        return 0
+    if text.isdigit():
+        return int(text)
+    return MINUTE_WORDS[text]
+
+
+def infer_ampm(sentence: str, hour: int) -> str:
+    if MIDNIGHT_RE.search(sentence):
+        return "am"
+    if NOON_RE.search(sentence):
+        return "pm"
+    if AM_CUE_RE.search(sentence) and not PM_CUE_RE.search(sentence):
+        return "am"
+    if PM_CUE_RE.search(sentence) and not AM_CUE_RE.search(sentence):
+        return "pm"
+    if NIGHT_RE.search(sentence):
+        return "am" if hour == 12 or hour <= 5 else "pm"
+    return "unknown"
+
+
+def key_for(hour: int, minute: int, ampm: str) -> str:
+    if ampm == "am":
+        hour24 = 0 if hour == 12 else hour
+    elif ampm == "pm":
+        hour24 = 12 if hour == 12 else hour + 12
+    else:
+        raise ValueError("precise entries require an explicit AM/PM cue")
+    return f"{hour24:02d}:{minute:02d}"
+
+
+def extract_precise(sentence: str) -> list[tuple[str, str, str]]:
+    if NON_TIME_HOUR_RE.search(sentence):
+        return []
+    matches = list(HOUR_RE.finditer(sentence))
+    if len(matches) != 1:
+        return []
+    match = matches[0]
+    if APPROXIMATE_RE.search(sentence[max(0, match.start() - 8): min(len(sentence), match.end() + 32)]):
+        return []
+    if not match.group("minute") and not match.group("half"):
+        tail = sentence[match.end(): match.end() + 18]
+        if DIRECT_MINUTE_AFTER_RE.search(tail):
+            return []
+    hour = hour_number(match.group("hour"))
+    minute = minute_number(match.group("minute"), bool(match.group("half")))
+    if minute > 59:
+        return []
+    ampm = infer_ampm(sentence, hour)
+    # A bare Korean 12-hour expression (for example, "세 시") does not prove
+    # whether the scene belongs to 03:00 or 15:00. Keep it out of the 24-hour
+    # precise corpus instead of duplicating it across both keys.
+    if ampm == "unknown":
+        return []
+    phrase = match.group(0).strip()
+    primary = key_for(hour, minute, ampm)
+    return [(primary, phrase, ampm)]
+
 
 BUCKET_ORDER = ["자정", "새벽", "아침", "오전", "정오", "오후", "저녁", "밤"]
-
 BUCKET_META = {
     "자정": {"rep": "00:00", "start": "23:30", "end": "00:29"},
     "새벽": {"rep": "04:30", "start": "03:00", "end": "05:59"},
@@ -239,250 +308,244 @@ BUCKET_META = {
     "저녁": {"rep": "18:30", "start": "17:00", "end": "19:29"},
     "밤": {"rep": "21:30", "start": "19:30", "end": "23:29"},
 }
-
-# daypart keyword patterns. 낮/밤 guarded to avoid compound false positives.
 DAYPART_PATTERNS = {
-    "자정": re.compile(r"자정|한밤중|밤중|한밤"),
-    "새벽": re.compile(r"새벽|동트기|동틀|먼동"),
-    "아침": re.compile(r"아침|동틀녘|아침나절|조반"),
-    "오전": re.compile(r"오전"),
-    "정오": re.compile(r"정오|한낮|한나절|대낮|낮(?=에|이|은|을|,|\.|!|\?|\s|$)"),
-    "오후": re.compile(r"오후"),
-    "저녁": re.compile(r"저녁|해질|해 질|황혼|땅거미|저물|어스름|노을"),
-    "밤": re.compile(r"초저녁|야밤|밤(?=에|이|은|을|중|새|하늘|길|,|\.|!|\?|\s|$)"),
+    "자정": re.compile(r"(?<![가-힣])자정(?![가-힣])"),
+    "새벽": re.compile(r"(?<![가-힣])(?:새벽|동틀녘|먼동)(?=$|[^가-힣]|[에이은을])"),
+    "아침": re.compile(r"(?<![가-힣])(?:아침|아침나절|조반)(?=$|[^가-힣]|[에이은을])"),
+    "오전": re.compile(r"(?<![가-힣])오전(?=$|[^가-힣])"),
+    "정오": re.compile(r"(?<![가-힣])(?:정오|한낮|대낮|낮)(?!밤)(?=$|[^가-힣]|[에이은을])"),
+    "오후": re.compile(r"(?<![가-힣])오후(?=$|[^가-힣])"),
+    "저녁": re.compile(r"(?<![가-힣])(?:저녁|황혼|땅거미|어스름)(?=$|[^가-힣]|[에이은을])"),
+    "밤": re.compile(r"(?<![가-힣])(?:초저녁|야밤|밤)(?!낮|새)(?=$|[^가-힣]|[에이은을중])"),
 }
 
-HOUR_WORDS = [
-    ("열두", 12), ("열한", 11), ("열", 10), ("아홉", 9), ("여덟", 8),
-    ("일곱", 7), ("여섯", 6), ("다섯", 5), ("네", 4), ("세", 3), ("두", 2), ("한", 1),
-]
-HOUR_ALT = "|".join(w for w, _ in HOUR_WORDS)
-HOUR_TO_NUM = dict(HOUR_WORDS)
-# "<word> 시" but not 시간/시절/시집/시골/시내/시기/시험/시국/시장/시월/시계/시위/시비...
-HOUR_RE = re.compile(
-    r"(" + HOUR_ALT + r")\s*시(?!간|절|집|골|내|기|험|국|장|월|계|위|비|각)(\s*반)?"
-)
-DIGIT_MIN_RE = re.compile(r"(\d{1,2})\s*분")
 
-AM_CUE_RE = re.compile(r"새벽|아침|오전")
-PM_CUE_RE = re.compile(r"오후|저녁|초저녁|밤")
-
-
-# Tokens where HOUR_RE grabs a spurious "<n> 시": ASAP idiom (한시바삐), Chinese
-# poetry (한시/漢詩), verb endings (두시구/두시우), relief (한시름), and word-split
-# artifacts (모두 시세, 만한 시금치, 번화한 시가지, 독창이래두 시키세, 시신경,
-# 시체). Reject the candidate when one is present so a rebuild does not
-# reintroduce the entries cleaned out of the shipped data.
-FALSE_POSITIVE_RE = re.compile(
-    r"한시바삐|한시름|漢詩|한시\s*한문|한시\s*맛|한시\s*공부|한시와|"
-    r"두시구|두시우|알아\s*두시|시금치|시신경|시가지|시체|시세를|시키세|만한\s*시"
-)
-
-
-def extract_precise(sentence):
-    """Return (rep_key, t_text, minute, ampm) or None."""
-    if FALSE_POSITIVE_RE.search(sentence):
-        return None
-    m = HOUR_RE.search(sentence)
-    if not m:
-        return None
-    hour = HOUR_TO_NUM[m.group(1)]
-    has_ban = m.group(2) is not None
-    if has_ban:
-        minute = 30
-    else:
-        dm = DIGIT_MIN_RE.search(sentence)
-        minute = int(dm.group(1)) if dm else 0
-    if minute > 59:
-        minute = 0
-    t_text = m.group(0).strip()
-
-    am = bool(AM_CUE_RE.search(sentence))
-    pm = bool(PM_CUE_RE.search(sentence))
-    if am and not pm:
-        ampm = "am"
-    elif pm and not am:
-        ampm = "pm"
-    else:
-        ampm = "unknown"
-
-    if ampm == "pm":
-        h = 12 if hour == 12 else hour + 12
-    else:  # am or unknown use am-style canonical key; frontend matches hour for unknown
-        h = 0 if hour == 12 else hour
-    key = "%02d:%02d" % (h, minute)
-    return key, t_text, minute, ampm
-
-
-def extract_bucket(sentence):
-    """Return (bucket_name, t_text) using KO_SPEC priority, or None.
-
-    Priority: 자정 > 정오 > (새벽/아침/오전/오후/저녁/밤).
-    """
-    for name in ("자정", "정오"):
-        mo = DAYPART_PATTERNS[name].search(sentence)
-        if mo:
-            return name, mo.group(0)
-    for name in ("새벽", "아침", "오전", "오후", "저녁", "밤"):
-        mo = DAYPART_PATTERNS[name].search(sentence)
-        if mo:
-            return name, mo.group(0)
+def extract_bucket(sentence: str) -> tuple[str, str] | None:
+    for name in BUCKET_ORDER:
+        match = DAYPART_PATTERNS[name].search(sentence)
+        if match:
+            return name, match.group(0)
     return None
 
 
-def normalize_ws(text):
-    return WS_RE.sub(" ", text).strip()
+def load_translations() -> dict[str, list[dict]]:
+    if not TRANSLATIONS_JSON.exists():
+        raise RuntimeError(f"Missing canonical translation corpus: {TRANSLATIONS_JSON}")
+    translations = json.loads(TRANSLATIONS_JSON.read_text(encoding="utf-8"))
+    keys = sorted(translations)
+    if keys != ALL_MINUTES:
+        missing = sorted(set(ALL_MINUTES) - set(keys))
+        extra = sorted(set(keys) - set(ALL_MINUTES))
+        raise RuntimeError(f"Translation coverage must be exactly 1440 keys; missing={missing}, extra={extra}")
+    for time, entries in translations.items():
+        if not isinstance(entries, list) or not entries:
+            raise RuntimeError(f"Translation minute {time} has no entries")
+        for entry in entries:
+            for field in ("t", "q", "title", "author"):
+                if not isinstance(entry.get(field), str) or not entry[field].strip():
+                    raise RuntimeError(f"Translation {time} missing {field}")
+            if entry["t"].casefold() not in entry["q"].casefold():
+                raise RuntimeError(f"Translation {time} time phrase is not inside quote")
+            entry["kind"] = "역"
+            entry.setdefault("match", "exact")
+    return translations
 
 
-def build(refresh):
-    SRC_DIR.mkdir(parents=True, exist_ok=True)
+def extract_korean_originals(refresh: bool) -> tuple[dict[str, list[dict]], dict[str, list[dict]], list[dict]]:
+    precise: dict[str, list[dict]] = {}
+    buckets: dict[str, list[dict]] = {name: [] for name in BUCKET_ORDER}
+    sources: list[dict] = []
+    seen_precise: set[tuple[str, str]] = set()
+    seen_bucket: set[tuple[str, str]] = set()
 
-    # Public-domain gate.
-    for title, author, death, _sub in WORKS:
-        if death > PD_CUTOFF_YEAR:
-            raise RuntimeError(
-                "Work '%s' (%s, d.%d) exceeds PD cutoff %d"
-                % (title, author, death, PD_CUTOFF_YEAR)
-            )
-
-    precise = {}
-    buckets = {name: [] for name in BUCKET_ORDER}
-    sources = []
-    seen_q = set()
-    total_fetch_attempts = 0
-    fetch_ok = 0
-    failed = []
-
-    for title, author, death, is_toc in WORKS:
-        total_fetch_attempts += 1
-        sys.stdout.write("Fetching '%s' (%s, d.%d)\n" % (title, author, death))
-        raw = acquire_raw(title, is_toc, refresh)
-        if raw is None:
-            failed.append(title)
-            continue
-        fetch_ok += 1
-        raw_norm = normalize_ws(raw)
+    for title, author, death_year, toc in WORKS:
+        if death_year > PD_CUTOFF_YEAR:
+            raise RuntimeError(f"{title!r} exceeds public-domain cutoff")
+        raw = acquire_raw(title, toc, refresh)
+        raw_normalized = normalize_ws(raw)
         display_title = DISAMBIG_RE.sub("", title)
-
         extracted = 0
-        for para in clean_wikitext(raw):
-            for sent in split_sentences(para):
-                key = normalize_ws(sent)
-                if key in seen_q:
-                    continue
-                # Absolute rule: verbatim substring of RAW source.
-                if key not in raw_norm:
-                    continue
 
-                pr = extract_precise(sent)
-                if pr is not None:
-                    rep_key, t_text, _minute, ampm = pr
-                    precise.setdefault(rep_key, []).append({
-                        "t": t_text, "q": sent, "title": display_title,
-                        "author": author, "ampm": ampm,
-                    })
-                    seen_q.add(key)
-                    extracted += 1
+        for paragraph in clean_wikitext(raw):
+            for sentence in split_sentences(paragraph):
+                normalized = normalize_ws(sentence)
+                if normalized not in raw_normalized:
                     continue
-
-                bk = extract_bucket(sent)
-                if bk is not None:
-                    name, t_text = bk
+                matches = extract_precise(sentence)
+                if matches:
+                    for time, phrase, ampm in matches:
+                        dedupe = (time, normalized)
+                        if dedupe in seen_precise:
+                            continue
+                        seen_precise.add(dedupe)
+                        precise.setdefault(time, []).append({
+                            "t": phrase,
+                            "q": sentence,
+                            "title": display_title,
+                            "author": author,
+                            "ampm": ampm,
+                            "kind": "원문",
+                            "match": "exact",
+                            "source_page": title,
+                            "source_url": raw_url(title),
+                        })
+                        extracted += 1
+                    continue
+                bucket = extract_bucket(sentence)
+                if bucket:
+                    name, phrase = bucket
+                    dedupe = (name, normalized)
+                    if dedupe in seen_bucket:
+                        continue
+                    seen_bucket.add(dedupe)
                     buckets[name].append({
-                        "t": t_text, "q": sent, "title": display_title,
+                        "t": phrase,
+                        "q": sentence,
+                        "title": display_title,
                         "author": author,
+                        "kind": "원문",
+                        "match": "daypart",
+                        "source_page": title,
+                        "source_url": raw_url(title),
                     })
-                    seen_q.add(key)
                     extracted += 1
 
         sources.append({
-            "title": display_title, "author": author, "death_year": death,
-            "page": title, "url": RAW_URL % urllib.parse.quote(title),
-            "fetched_chars": len(raw), "extracted": extracted,
+            "title": display_title,
+            "page": title,
+            "author": author,
+            "death_year": death_year,
+            "url": raw_url(title),
+            "fetched_chars": len(raw),
+            "extracted": extracted,
         })
-        sys.stdout.write("  extracted %d quotes (raw %d chars)\n" % (extracted, len(raw)))
+    return precise, buckets, sources
 
-    if fetch_ok == 0:
-        raise RuntimeError("All fetches failed; refusing to write empty output.")
 
-    total_quotes = sum(len(v) for v in precise.values()) + sum(
-        len(v) for v in buckets.values()
-    )
-    if total_quotes == 0:
-        raise RuntimeError("Zero quotes extracted; refusing to write empty output.")
-
-    # Internal substring re-verification (should be all-pass by construction).
-    verify_fail = 0
-    raw_cache = {}
-    for src in sources:
-        cache = SRC_DIR / (src["page"].replace("/", "_") + ".txt")
-        raw_cache[src["author"] + "\x00" + src["title"]] = normalize_ws(
-            cache.read_text(encoding="utf-8")
-        )
-    # Cross-check every emitted quote against at least one source of same author.
-    author_raw = {}
-    for src in sources:
-        author_raw.setdefault(src["author"], []).append(
-            normalize_ws((SRC_DIR / (src["page"].replace("/", "_") + ".txt")).read_text(encoding="utf-8"))
-        )
+def verify_original_provenance(precise: dict, buckets: dict) -> int:
+    raw_by_page = {
+        title: normalize_ws(cache_path(title).read_text(encoding="utf-8"))
+        for title, _author, _death, _toc in WORKS
+    }
+    verified = 0
     for group in (precise, buckets):
         for entries in group.values():
-            for e in entries:
-                q = normalize_ws(e["q"])
-                if not any(q in blob for blob in author_raw.get(e["author"], [])):
-                    verify_fail += 1
-    if verify_fail:
-        raise RuntimeError("%d quotes failed substring re-verification" % verify_fail)
+            for entry in entries:
+                source = raw_by_page.get(entry["source_page"], "")
+                if normalize_ws(entry["q"]) not in source:
+                    raise RuntimeError(f"Original provenance failed: {entry['source_page']} / {entry['q'][:40]}")
+                verified += 1
+    return verified
 
-    precise_sorted = {
-        k: precise[k] for k in sorted(precise)
-    }
-    buckets_out = {name: buckets[name] for name in BUCKET_ORDER}
+
+def serialized_outputs(obj: dict, coverage: dict) -> tuple[str, str, str]:
+    json_text = json.dumps(obj, ensure_ascii=False, indent=2) + "\n"
+    js_text = "window.AUTHOR_CLOCK_QUOTES_KO = " + json.dumps(obj, ensure_ascii=False, indent=2) + ";\n"
+    coverage_text = json.dumps(coverage, ensure_ascii=False, indent=2) + "\n"
+    return json_text, js_text, coverage_text
+
+
+def build(refresh: bool = False) -> tuple[dict, dict]:
+    translations = load_translations()
+    originals, buckets, sources = extract_korean_originals(refresh)
+    verified_originals = verify_original_provenance(originals, buckets)
+
+    precise: dict[str, list[dict]] = {}
+    for time in ALL_MINUTES:
+        translated_items = [dict(item) for item in translations[time]]
+        original_items = [dict(item) for item in originals.get(time, [])]
+        precise[time] = original_items + translated_items
 
     obj = {
-        "precise": precise_sorted,
-        "buckets": buckets_out,
+        "meta": {
+            "schema_version": 2,
+            "minute_keys": 1440,
+            "precise_policy": "Entries belong only to their exact HH:MM key; ambiguous AM/PM and approximate items are excluded.",
+            "compilation_license": "CC BY-NC-SA 2.5",
+            "compilation_license_file": "data/LITERATURE_CLOCK_LICENSE.md",
+            "translation_input": "data/ko_translations.json",
+            "original_input": "data/ko_sources/*.txt",
+        },
+        "precise": precise,
+        "buckets": {name: buckets[name] for name in BUCKET_ORDER},
         "bucketMeta": BUCKET_META,
     }
 
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    QUOTES_JSON.write_text(
-        json.dumps(obj, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
-    QUOTES_JS.write_text(
-        "window.AUTHOR_CLOCK_QUOTES_KO = %s;\n"
-        % json.dumps(obj, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
-
+    all_precise = [entry for entries in precise.values() for entry in entries]
+    all_buckets = [entry for entries in buckets.values() for entry in entries]
+    translated = [entry for entry in all_precise if entry.get("kind") == "역"]
+    translation_review_counts: dict[str, int] = {}
+    translation_source_match_basis_counts: dict[str, int] = {}
+    for entry in translated:
+        status = entry.get("review_status", "missing")
+        translation_review_counts[status] = translation_review_counts.get(status, 0) + 1
+        basis = entry.get("source_match_basis")
+        if basis:
+            translation_source_match_basis_counts[basis] = translation_source_match_basis_counts.get(basis, 0) + 1
+    approximate_keys = sorted({
+        time for time, entries in precise.items()
+        if not any(entry.get("match", "exact") == "exact" for entry in entries)
+    })
     coverage = {
+        "schema_version": 2,
+        "compilation_license": "CC BY-NC-SA 2.5",
+        "compilation_license_file": "data/LITERATURE_CLOCK_LICENSE.md",
         "sources": sources,
-        "precise_keys": sorted(precise_sorted),
+        "minute_keys": len(precise),
+        "precise_entries": len(all_precise),
+        "translated_entries": len(translated),
+        "translated_source_row_entries": sum(bool(entry.get("source_q")) for entry in translated),
+        "translated_source_ref_entries": sum(bool(entry.get("source_ref")) for entry in translated),
+        "translation_review_counts": dict(sorted(translation_review_counts.items())),
+        "translation_source_match_basis_counts": dict(sorted(translation_source_match_basis_counts.items())),
+        "original_precise_entries": sum(entry.get("kind") == "원문" for entry in all_precise),
+        "original_bucket_entries": len(all_buckets),
+        "substring_verified_original_entries": verified_originals,
+        "approximate_only_keys": approximate_keys,
+        "exact_minute_keys": 1440 - len(approximate_keys),
         "bucket_counts": {name: len(buckets[name]) for name in BUCKET_ORDER},
-        "total_quotes": total_quotes,
-        "substring_verified": True,
     }
-    COVERAGE_JSON.write_text(
-        json.dumps(coverage, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
-
-    return obj, coverage, failed
+    return obj, coverage
 
 
-def main():
-    refresh = "--refresh" in sys.argv[1:]
-    obj, coverage, failed = build(refresh)
+def write_outputs(obj: dict, coverage: dict) -> None:
+    json_text, js_text, coverage_text = serialized_outputs(obj, coverage)
+    QUOTES_JSON.write_text(json_text, encoding="utf-8")
+    QUOTES_JS.write_text(js_text, encoding="utf-8")
+    COVERAGE_JSON.write_text(coverage_text, encoding="utf-8")
 
-    sys.stdout.write("\n==== summary ====\n")
-    sys.stdout.write("Wrote %s\n" % QUOTES_JS)
-    sys.stdout.write("Wrote %s\n" % QUOTES_JSON)
-    sys.stdout.write("Wrote %s\n" % COVERAGE_JSON)
-    sys.stdout.write("Sources OK: %d, failed: %s\n" % (len(coverage["sources"]), failed or "none"))
-    sys.stdout.write("Total quotes: %d\n" % coverage["total_quotes"])
-    sys.stdout.write("Precise keys (%d): %s\n" % (
-        len(coverage["precise_keys"]), coverage["precise_keys"]))
-    sys.stdout.write("Bucket counts: %s\n" % coverage["bucket_counts"])
+
+def check_outputs(obj: dict, coverage: dict) -> None:
+    expected = serialized_outputs(obj, coverage)
+    paths = (QUOTES_JSON, QUOTES_JS, COVERAGE_JSON)
+    stale = [str(path.relative_to(ROOT)) for path, text in zip(paths, expected) if not path.exists() or path.read_text(encoding="utf-8") != text]
+    if stale:
+        raise RuntimeError("Generated files are stale: " + ", ".join(stale) + ". Run scripts/build_ko_quotes.py")
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--refresh", action="store_true", help="refresh cached Wikisource inputs over the network")
+    parser.add_argument("--check", action="store_true", help="verify committed output without writing")
+    args = parser.parse_args()
+    if args.refresh and args.check:
+        parser.error("--refresh and --check cannot be combined")
+
+    obj, coverage = build(refresh=args.refresh)
+    if args.check:
+        check_outputs(obj, coverage)
+        print("Generated dataset is reproducible and up to date.")
+    else:
+        write_outputs(obj, coverage)
+        print(f"Wrote 1440 minute keys ({coverage['precise_entries']} precise entries).")
+        if coverage["approximate_only_keys"]:
+            print("Needs exact source:", ", ".join(coverage["approximate_only_keys"]))
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        raise SystemExit(main())
+    except RuntimeError as error:
+        print(f"error: {error}", file=sys.stderr)
+        raise SystemExit(1)

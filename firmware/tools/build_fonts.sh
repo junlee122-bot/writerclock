@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Build the subset Korean fonts + large digit font as LVGL C fonts for the
-# author-clock firmware (ST7305 mono 1bpp panel).
+# WriterClock firmware (ST7305 mono 1bpp panel).
 # Requires: curl, python3, pyftsubset (fonttools), node + npx (lv_font_conv).
 # Run build_data.py first so ../data/glyphs.txt exists.
 # Copy the generated font_*.c into ../main/ before building.
@@ -12,6 +12,7 @@ cd "$(dirname "$0")"
 # is extracted from it.
 FONT_ZIP_URL="https://github.com/orioncactus/pretendard/releases/download/v1.3.9/Pretendard-1.3.9.zip"
 FONT_ZIP="Pretendard-1.3.9.zip"
+FONT_ZIP_SHA256="04be351a74d6bf7d60c480a3087e51d185485d35a52023142af1df19eb8c428a"
 SRC_TTF="Pretendard-Regular.ttf"        # SIL OFL, redistributable
 SUBSET_TTF="Pretendard-subset.ttf"
 GLYPHS="../data/glyphs.txt"
@@ -19,7 +20,19 @@ GLYPHS="../data/glyphs.txt"
 # Fetch + extract the regular static TTF from the release zip. The in-zip path
 # is discovered at runtime instead of hardcoded.
 if [ ! -f "$SRC_TTF" ]; then
-  [ -f "$FONT_ZIP" ] || curl -sL -o "$FONT_ZIP" "$FONT_ZIP_URL"
+  [ -f "$FONT_ZIP" ] || curl --fail --show-error --location --retry 3 -o "$FONT_ZIP" "$FONT_ZIP_URL"
+  python3 - "$FONT_ZIP" "$FONT_ZIP_SHA256" <<'PY'
+import hashlib
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+expected = sys.argv[2]
+actual = hashlib.sha256(path.read_bytes()).hexdigest()
+if actual != expected:
+    raise SystemExit(f"SHA-256 mismatch for {path}: expected {expected}, got {actual}")
+print(f"verified {path}: {actual}")
+PY
   python3 -c "
 import zipfile, shutil
 z = zipfile.ZipFile('$FONT_ZIP')
@@ -43,18 +56,18 @@ open('hangul_symbols.txt','w',encoding='utf-8').write(''.join(non))
 
 # 1bpp on the mono reflective panel (no grayscale). ASCII via --range,
 # hangul/specials via --symbols.
-npx --yes lv_font_conv --font "$SUBSET_TTF" --size 28 --bpp 1 --format lvgl \
+npx --yes lv_font_conv@1.5.3 --font "$SUBSET_TTF" --size 28 --bpp 1 --format lvgl \
   --range 0x20-0x7E --symbols "$(cat hangul_symbols.txt)" -o font_ko_28.c
 # Smaller quote-body sizes for the clock-screen auto-fit ladder (28 -> 22 -> 18).
-npx --yes lv_font_conv --font "$SUBSET_TTF" --size 22 --bpp 1 --format lvgl \
+npx --yes lv_font_conv@1.5.3 --font "$SUBSET_TTF" --size 22 --bpp 1 --format lvgl \
   --range 0x20-0x7E --symbols "$(cat hangul_symbols.txt)" -o font_ko_22.c
-npx --yes lv_font_conv --font "$SUBSET_TTF" --size 18 --bpp 1 --format lvgl \
+npx --yes lv_font_conv@1.5.3 --font "$SUBSET_TTF" --size 18 --bpp 1 --format lvgl \
   --range 0x20-0x7E --symbols "$(cat hangul_symbols.txt)" -o font_ko_18.c
-npx --yes lv_font_conv --font "$SUBSET_TTF" --size 44 --bpp 1 --format lvgl \
+npx --yes lv_font_conv@1.5.3 --font "$SUBSET_TTF" --size 44 --bpp 1 --format lvgl \
   --range 0x20-0x7E --symbols "$(cat hangul_symbols.txt)" -o font_ko_44.c
 
 # Large clock digits: only 0-9 and ':' (0x30-0x3A) -> a few KB.
-npx --yes lv_font_conv --font "$SUBSET_TTF" --size 96 --bpp 1 --format lvgl \
+npx --yes lv_font_conv@1.5.3 --font "$SUBSET_TTF" --size 96 --bpp 1 --format lvgl \
   --range 0x30-0x3A -o font_digits_96.c
 
 echo "done: $SUBSET_TTF, font_ko_28.c, font_ko_22.c, font_ko_18.c, font_ko_44.c, font_digits_96.c"

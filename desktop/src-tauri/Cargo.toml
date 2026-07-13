@@ -1,18 +1,20 @@
 [package]
-name = "author-clock"
-version = "0.1.0"
-description = "AuthorClock desktop wrapper for the GitHub Pages site"
+name = "writerclock"
+version = "1.0.0"
+description = "Offline WriterClock desktop application"
 edition = "2021"
 rust-version = "1.77.2"
+license = "MIT"
+repository = "https://github.com/junlee122-bot/writerclock"
 
 [build-dependencies]
-tauri-build = { version = "2", features = [] }
+tauri-build = { version = "=2.6.3", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri = { version = "=2.11.5", features = ["tray-icon", "image-png"] }
 
 [[bin]]
-name = "author-clock"
+name = "writerclock"
 path = "src/main.rs"
 
 [profile.release]

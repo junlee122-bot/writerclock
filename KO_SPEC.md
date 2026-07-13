@@ -1,4 +1,9 @@
-# 한국어 작가시계, Build Spec (KO, 최종 방향)
+# 한국어 작가시계, 초기 Build Spec (보존 문서)
+
+> **상태: 상류 설계 기록, 현재 구현 계약 아님.** 이 문서는 초기 한국어 공개저작
+> 실험의 요구사항을 보존합니다. 현재 앱은 24시간 exact-only 데이터, 번역 항목의
+> 검토 상태와 권리 게이트를 포함하도록 확장됐습니다. 실제 계약은 `README.md`,
+> `DATA_LICENSE.md`, `data/ko_coverage.json`, `scripts/audit_data.mjs`를 따릅니다.
 
 Threads @gojaehyun.go 참고. 한국 공개저작 문학 문장으로 현재 시각을 표시하는 로컬 웹앱.
 영어 Author Clock(SPEC.md) 개념을 한국어로. **차이**: 한국 문학은 분 단위 정밀 시각 표현이 드물다 → 시간대(daypart)/시/분 3단 입도로 설계.

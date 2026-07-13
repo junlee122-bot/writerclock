@@ -1,99 +1,93 @@
-/* Author Clock service worker: offline cache-first app shell. */
+/* WriterClock service worker: versioned app shell + safe stale-while-revalidate. */
 "use strict";
 
-var CACHE_NAME = "author-clock-v4";
+var CACHE_PREFIX = "writerclock-";
+var CACHE_NAME = CACHE_PREFIX + "v1.0.1";
 var PRECACHE_URLS = [
+  "./",
   "./index.html",
   "assets/style.css",
   "assets/app.js",
+  "assets/og-image.png",
   "data/ko_quotes.js",
+  "DATA_LICENSE.md",
+  "NOTICE.md",
+  "data/LITERATURE_CLOCK_LICENSE.md",
+  "firmware/OFL.txt",
   "manifest.webmanifest",
   "assets/icons/icon-192.png",
   "assets/icons/icon-512.png",
   "assets/icons/icon-512-maskable.png",
   "assets/icons/apple-touch-icon.png",
-  "assets/icons/favicon-32.png",
+  "assets/icons/favicon-32.png"
 ];
 
 self.addEventListener("install", function (event) {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then(function (cache) {
-      return cache.addAll(PRECACHE_URLS);
-    })
-  );
-  self.skipWaiting();
+  event.waitUntil(caches.open(CACHE_NAME).then(function (cache) {
+    return cache.addAll(PRECACHE_URLS);
+  }));
 });
 
 self.addEventListener("activate", function (event) {
   event.waitUntil(
     caches.keys().then(function (keys) {
-      return Promise.all(
-        keys
-          .filter(function (key) {
-            return key !== CACHE_NAME;
-          })
-          .map(function (key) {
-            return caches.delete(key);
-          })
-      );
+      return Promise.all(keys.filter(function (key) {
+        return key.indexOf(CACHE_PREFIX) === 0 && key !== CACHE_NAME;
+      }).map(function (key) {
+        return caches.delete(key);
+      }));
+    }).then(function () {
+      return self.clients.claim();
     })
   );
-  self.clients.claim();
 });
 
-function isCacheFirstPath(pathname) {
-  return pathname.indexOf("/data/") !== -1 || pathname.indexOf("/assets/icons/") !== -1;
+self.addEventListener("message", function (event) {
+  if (event.data && event.data.type === "SKIP_WAITING") self.skipWaiting();
+});
+
+function cacheable(response) {
+  return response && response.ok && (response.type === "basic" || response.type === "default");
+}
+
+function put(event, response) {
+  if (!cacheable(response)) return Promise.resolve();
+  return caches.open(CACHE_NAME).then(function (cache) {
+    return cache.put(event.request, response.clone());
+  });
 }
 
 function networkFirst(event) {
-  return fetch(event.request)
-    .then(function (response) {
-      var copy = response.clone();
-      caches.open(CACHE_NAME).then(function (cache) {
-        cache.put(event.request, copy);
-      });
-      return response;
-    })
-    .catch(function () {
-      return caches.match(event.request).then(function (cached) {
-        if (cached) {
-          return cached;
-        }
-        if (event.request.mode === "navigate") {
-          return caches.match("./index.html");
-        }
-        return Promise.reject(new Error("network and cache both failed"));
-      });
+  return fetch(event.request).then(function (response) {
+    event.waitUntil(put(event, response));
+    return response;
+  }).catch(function () {
+    return caches.match(event.request).then(function (cached) {
+      return cached || caches.match("./index.html");
     });
+  });
 }
 
-function cacheFirst(event) {
+function staleWhileRevalidate(event) {
   return caches.match(event.request).then(function (cached) {
-    var network = fetch(event.request)
-      .then(function (response) {
-        caches.open(CACHE_NAME).then(function (cache) {
-          cache.put(event.request, response.clone());
-        });
-        return response;
-      })
-      .catch(function () {
-        return cached;
-      });
-    return cached || network;
+    var update = fetch(event.request).then(function (response) {
+      return put(event, response).then(function () { return response; });
+    }).catch(function () { return null; });
+    event.waitUntil(update);
+    if (cached) return cached;
+    return update.then(function (response) {
+      return response || Response.error();
+    });
   });
 }
 
 self.addEventListener("fetch", function (event) {
+  if (event.request.method !== "GET") return;
   var url = new URL(event.request.url);
-
-  if (url.origin !== self.location.origin) {
-    return;
-  }
-
-  if (event.request.mode === "navigate" || isCacheFirstPath(url.pathname) === false) {
+  if (url.origin !== self.location.origin) return;
+  if (event.request.mode === "navigate") {
     event.respondWith(networkFirst(event));
     return;
   }
-
-  event.respondWith(cacheFirst(event));
+  event.respondWith(staleWhileRevalidate(event));
 });

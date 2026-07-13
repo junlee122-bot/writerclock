@@ -1,14 +1,18 @@
 {
-  "name": "작가시계",
+  "id": "./",
+  "name": "작가시계 · WriterClock",
   "short_name": "작가시계",
-  "description": "문학 인용문으로 시각을 보여주는 작가시계",
-  "start_url": "./index.html",
+  "description": "하루 1,440분을 실제 문학 속 시간 문장으로 읽는 시계",
+  "lang": "ko",
+  "dir": "ltr",
+  "start_url": "./",
   "scope": "./",
-  "display": "fullscreen",
-  "display_override": ["fullscreen", "standalone"],
+  "display": "standalone",
+  "display_override": ["fullscreen", "standalone", "minimal-ui"],
   "orientation": "any",
-  "background_color": "#1b1a17",
-  "theme_color": "#1b1a17",
+  "background_color": "#171714",
+  "theme_color": "#171714",
+  "categories": ["books", "lifestyle", "utilities"],
   "icons": [
     {
       "src": "assets/icons/icon-192.png",
@@ -27,6 +31,18 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "현재 시각",
+      "short_name": "현재",
+      "url": "./"
+    },
+    {
+      "name": "정오 문장",
+      "short_name": "정오",
+      "url": "./?time=12:00"
     }
   ]
 }

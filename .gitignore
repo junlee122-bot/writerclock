@@ -2,6 +2,9 @@
 .codex-review-passed
 .claude/state/
 notes/
+/dist/
+__pycache__/
+*.py[cod]
 data/_trans/
 firmware/tools/*.ttf
 firmware/tools/font_ko_*.c

@@ -1,31 +1,37 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "AuthorClock",
-  "version": "0.1.0",
-  "identifier": "io.github.gyuminlee-repo.author-clock",
+  "productName": "WriterClock",
+  "version": "1.0.0",
+  "identifier": "io.github.junlee122.writerclock",
   "build": {
-    "frontendDist": "https://gyuminlee-repo.github.io/author-clock/"
+    "beforeDevCommand": "npm run prepare",
+    "beforeBuildCommand": "npm run prepare",
+    "frontendDist": "../dist"
   },
   "app": {
     "windows": [
       {
-        "title": "작가시계",
-        "width": 520,
-        "height": 400,
+        "label": "main",
+        "title": "작가시계 · WriterClock",
+        "width": 900,
+        "height": 680,
         "minWidth": 320,
-        "minHeight": 240,
+        "minHeight": 420,
         "resizable": true,
         "alwaysOnTop": true,
         "decorations": true
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self' customprotocol: asset:; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: data:; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
     }
   },
   "bundle": {
     "active": true,
     "targets": "all",
+    "category": "Lifestyle",
+    "shortDescription": "하루 1,440분을 문학 문장으로 읽는 오프라인 시계",
+    "longDescription": "WriterClock displays an exact-time literary quotation with source-review status for every minute and works fully offline.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

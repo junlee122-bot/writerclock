@@ -19,7 +19,7 @@ foreach(f font_ko_28.c font_ko_22.c font_ko_18.c font_ko_44.c font_digits_96.c q
         list(APPEND app_srcs "${f}")
     else()
         message(FATAL_ERROR
-            "Missing generated font ${f}. Run: cd firmware/tools && python3 build_data.py && bash build_fonts.sh && python3 embed_quotes.py, then copy font_ko_28.c font_ko_22.c font_ko_18.c font_ko_44.c font_digits_96.c into firmware/main/")
+            "Missing generated source ${f}. Run: cd firmware/tools && python3 build_data.py && bash build_fonts.sh && python3 embed_quotes.py, then copy font_ko_28.c font_ko_22.c font_ko_18.c font_ko_44.c font_digits_96.c into firmware/main/")
     endif()
 endforeach()
 

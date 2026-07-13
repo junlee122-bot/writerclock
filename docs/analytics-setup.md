@@ -30,7 +30,7 @@
 2. 좌하단 톱니(관리) 클릭 → **속성 만들기** 클릭.
 3. 속성 이름에 `작가시계` 입력 → 시간대 `대한민국`, 통화 `대한민국 원` 선택 → **다음** → 업종/규모 선택 → **만들기**.
 4. **데이터 스트림** 화면에서 **웹** 선택.
-5. 웹사이트 URL에 `https://gyuminlee-repo.github.io/author-clock/` 입력, 스트림 이름 `작가시계 웹` 입력 → **스트림 만들기**.
+5. 웹사이트 URL에 `https://junlee122-bot.github.io/writerclock/` 입력, 스트림 이름 `작가시계 웹` 입력 → **스트림 만들기**.
 6. 생성된 스트림 상세에서 **측정 ID**(`G-XXXXXXXXXX` 형식)를 복사.
 7. 아래 스니펫의 `G-XXXXXXXXXX`를 복사한 측정 ID로 바꾼 뒤, `index.html`의 주석 마커 아래에 붙인다.
 
@@ -57,7 +57,7 @@
 
 1. `https://dash.cloudflare.com` 접속 후 로그인(계정 없으면 무료 가입).
 2. 좌측 메뉴 **Analytics & Logs → Web Analytics** 클릭.
-3. **Add a site** 클릭 → 호스트명에 `gyuminlee-repo.github.io` 입력 → 추가.
+3. **Add a site** 클릭 → 호스트명에 `junlee122-bot.github.io` 입력 → 추가.
 4. 발급된 **JS 스니펫**(`data-cf-beacon`에 토큰이 담긴 `<script>`)을 복사.
 5. 주석 마커 아래에 붙인다. 형태는 아래와 같다.
 
@@ -100,7 +100,7 @@
 
 반영 절차는 다음과 같다.
 
-1. `sw.js` 안의 캐시 버전 문자열(예: `const CACHE = 'author-clock-vN'`)에서 `N`을 한 단계 올린다. 이 한 줄만 바꾸면 서비스워커가 새 버전으로 인식하고 옛 캐시를 지운다.
+1. `sw.js` 안의 `CACHE_NAME` 버전(예: `writerclock-v1.0.0`)을 올린다. 이 한 줄만 바꾸면 서비스워커가 새 버전으로 인식하고 옛 캐시를 지운다.
 2. `index.html`, `sw.js`를 함께 커밋·배포한다.
 3. 사용자가 다음 방문 시 새 서비스워커가 활성화되면서 스니펫이 적용된다.
 4. 본인 기기에서 즉시 확인하려면 브라우저 개발자도구 **Application → Service Workers → Unregister** 후 강력 새로고침(Ctrl+Shift+R) 한다.

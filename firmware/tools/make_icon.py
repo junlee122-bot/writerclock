@@ -24,7 +24,8 @@ def emit(png_name, symbol, out_name):
 
     im = Image.open(src).convert("L")
     w, h = im.size
-    px = list(im.getdata())
+    pixels = im.get_flattened_data() if hasattr(im, "get_flattened_data") else im.getdata()
+    px = list(pixels)
 
     # black (0) -> opaque ink (255 alpha); anything else -> transparent (0).
     alpha = [255 if v < 128 else 0 for v in px]
