@@ -41,7 +41,7 @@ cd android
 ./gradlew assembleDebug        # Windows: gradlew.bat assembleDebug
 ```
 
-설치 가능한 APK는 `android/app/build/outputs/apk/debug/app-debug.apk`에 생성됩니다. GitHub의 `Android build` 워크플로도 같은 APK를 빌드해 `writerclock-android-apk` 아티팩트로 제공합니다. Google Play 배포용 AAB와 릴리스 서명은 별도의 비공개 키 구성이 필요합니다.
+설치 가능한 개발 APK는 `android/app/build/outputs/apk/debug/app-debug.apk`에 생성됩니다. GitHub의 `Android build` 워크플로는 저장소 비밀값에 보관한 전용 PKCS#12 키로 release APK를 서명해 `writerclock-android-apk` 아티팩트로 제공합니다. Google Play 배포용 AAB와 Play App Signing 등록은 별도 스토어 설정이 필요합니다.
 
 ## 데스크톱 앱
 
