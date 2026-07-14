@@ -23,9 +23,9 @@
 
 ## 왜 되는가 (실측)
 
-- 정확 시각 문장 데이터 `data/quotes_min.json` = 431KB (1440분, 1497개, 시간대 근사 문장 제외).
-- 데이터에 실제 쓰인 한글 1,275자뿐 -> subset 폰트가 작다.
-- LVGL 폰트(1bpp): 28px, 44px, 그리고 숫자만 담은 96px(수 KB).
+- 정확 시각 문장 데이터 `data/quotes_min.json` = 약 423KB (1,440분, 1,447개, 검토된 24시간 키 유지). 웹의 오전·오후 검토 배지는 축약 펌웨어 데이터에 포함되지 않습니다.
+- 데이터에 실제 쓰인 한글 1,261자뿐 -> subset 폰트가 작다.
+- LVGL 폰트(1bpp): 본문 28/22/18px, 메타 44px, 숫자만 담은 96px(수 KB).
 - 인용문 데이터는 C 배열(tools/embed_quotes.py 생성)로 컴파일되며, LVGL 드로우 버퍼는 8MB PSRAM 사용.
 
 ## 빌드
@@ -36,8 +36,8 @@
 cd firmware/tools
 python3 build_data.py      # -> ../data/quotes_min.json, ../data/glyphs.txt
 python3 make_icon.py       # assets/cat_bayer_*.png -> ../main/cat_icon.c(72x72), cat_icon_48.c(48x48)
-bash   build_fonts.sh      # SIL OFL Pretendard subset -> font_ko_28.c, font_ko_44.c, font_digits_96.c
-cp font_ko_28.c font_ko_44.c font_digits_96.c ../main/
+bash   build_fonts.sh      # SIL OFL Pretendard subset -> 28/22/18/44px 본문·메타, 96px 숫자 폰트
+cp font_ko_28.c font_ko_22.c font_ko_18.c font_ko_44.c font_digits_96.c ../main/
 ```
 
 `build_data.py`, `make_icon.py`, `build_fonts.sh`는 커밋된다. 원본 TTF와 대용량
@@ -81,7 +81,11 @@ pio device monitor -b 115200      # 로그
 ## 라이선스
 
 - 코드: MIT.
-- 폰트: Pretendard (SIL OFL 1.1).
-- 고양이 아이콘: Wikimedia Commons "A white persian cat" by Magnus Bråth,
-  CC BY-SA 2.0 를 1bpp Bayer 디더링 처리. 원본은 `assets/persian.jpg`.
+- 폰트: Pretendard를 서브셋·LVGL C 형식으로 변환해 사용. Copyright (c) 2021,
+  Kil Hyung-jin, Reserved Font Name `Pretendard`. SIL OFL 1.1 전체 고지는
+  [`OFL.txt`](OFL.txt)에 있습니다.
+- 고양이 아이콘: Wikimedia Commons
+  [“A white persian cat (4985430014)”](https://commons.wikimedia.org/wiki/File:A_white_persian_cat_(4985430014).jpg),
+  `kitty.green66`, [CC BY-SA 2.0](https://creativecommons.org/licenses/by-sa/2.0/).
+  `assets/persian.jpg`를 잘라 1bpp Bayer 디더링한 파생 이미지를 사용합니다.
 - 인용문: 웹앱과 동일(공개저작 원문 + 번역).

@@ -1,0 +1,16 @@
+{
+  "name": "writerclock",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A dependency-free literary clock with an exact-time, review-status-labeled quote for every minute.",
+  "scripts": {
+    "test": "node --test tests/app.test.cjs tests/curation.test.mjs",
+    "audit:data": "node scripts/audit_data.mjs",
+    "check:static": "node scripts/check_static.mjs",
+    "check": "npm test && npm run audit:data && npm run check:static"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT"
+}

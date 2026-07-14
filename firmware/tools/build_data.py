@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build embedded quote data + glyph set for the ESP32 author-clock firmware.
+"""Build embedded quote data + glyph set for the ESP32 WriterClock firmware.
 
 Reads the web app dataset (../../data/ko_quotes.js) and emits:
   ../data/quotes_min.json  minute-keyed, exact-time quotes only (daypart buckets dropped)

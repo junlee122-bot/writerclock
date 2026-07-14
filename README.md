@@ -1,78 +1,90 @@
-# 작가시계 (Author Clock, Korean edition)
+# WriterClock · 작가시계
 
-한국어 문학 인용문으로 현재 시각을 보여주는 로컬 단일 페이지 앱.
+현재 시각을 실제 문학 작품의 시각 표현이 들어간 문장으로 보여주는 한국어 문학시계입니다. 웹, 설치형 PWA, Windows/macOS 데스크톱 앱, ESP32-S3 펌웨어를 한 저장소에서 관리합니다.
 
-## 실행
+권리 승인 후 배포 예정 주소: <https://junlee122-bot.github.io/writerclock/>
 
-`index.html`을 브라우저에서 더블클릭으로 바로 열면 된다(서버 불필요).
-`data/ko_quotes.js`를 일반 `<script>` 태그로 불러오므로 `file://` 환경에서도
-CORS 없이 동작한다. `data/ko_quotes.js`가 아직 없으면 안내 문구만 표시된다.
+GitHub Pages 배포는 현대 작품 인용·번역의 권리 검토가 끝난 뒤에만 켜지도록
+보호되어 있습니다. 저장소 변수 `PUBLISH_QUOTE_DATA=approved`를 명시적으로
+설정해야 Pages 워크플로가 사이트 배포를 시작합니다.
 
-## 설치와 거치 사용 (충전 중 탁상시계)
+## 주요 기능
 
-폰을 충전 케이블에 꽂고 세워두면 문장이 매분 바뀌는 탁상시계가 된다. 설치(홈 화면
-추가)와 화면 켜짐 유지는 https 또는 localhost 호스팅이 필요하다(`file://`에선 서비스워커
-설치가 안 되지만 브라우저로 열어 보는 것은 된다). 정적 호스팅(GitHub Pages 등)에 올리거나
-`python3 -m http.server` 로 로컬 서빙한다.
+- 24시간 1,440분을 분 단위 문장으로 표시
+- 문장 안에서 현재 시각 표현을 강조하고 작품·저자·원문/번역 구분을 함께 표시
+- 같은 분의 다른 문장 보기, 시각 직접 탐색, 즐겨찾기와 공유
+- 자동/밝은/어두운 테마, 글자 크기, 거치 모드, 화면 켜짐 유지
+- 키보드 조작, 반응형 레이아웃, 동작 줄이기와 고대비 환경 지원
+- 서비스 워커 기반 오프라인 PWA
+- 웹 자산을 내부에 포함하는 Tauri 데스크톱 앱
 
-- **아이폰(iOS)**: Safari로 열기 → 공유 → "홈 화면에 추가" → 홈에서 실행 → 충전 거치.
-  화면 켜짐 유지(Wake Lock)는 iOS 16.4+ Safari, 설치형 앱은 iOS 18.4+부터 안정. iOS는
-  Fullscreen API 미지원이라 전체화면 버튼은 자동으로 숨겨지고 홈 화면 추가로 대체한다.
-- **안드로이드**: Chrome로 열기 → 메뉴 → "앱 설치" → 실행 → 충전 거치. 전체화면 버튼 지원.
-- **거치 모드**: 우상단 "거치 모드"를 켜면 밤(22:00~06:00)에 화면이 자동으로 어두워지고
-  컨트롤 버튼이 자동으로 숨는다(탭하면 다시 표시). 설정은 유지된다.
-- 잠금화면 자체 교체는 iOS/안드로이드 모두 불가하다. 이 앱은 "충전 중 거치 탁상시계"로
-  동작하며, 잠금화면 위젯이나 iOS StandBy는 네이티브 앱 영역이다.
+## 바로 실행하기
 
-버튼: 자동(테마 자동/밝게/어둡게), 거치 모드, 전체화면.
+`index.html`을 브라우저에서 열면 서버 없이도 기본 시계가 동작합니다. PWA 설치, 서비스 워커, 전체화면과 Wake Lock을 함께 시험하려면 저장소 루트에서 정적 서버를 실행하세요.
 
-## 파일 구성
+```bash
+python -m http.server 4173
+```
 
-- `index.html` - 마크업 및 스크립트 include
-- `assets/app.js` - 클라이언트 로직 전체(시각 매칭, 안전한 HTML 렌더링,
-  테마 토글, 매분 갱신)
-- `assets/style.css` - 라이트/다크 테마, 레이아웃, 반응형 규칙
-- `assets/_sample_ko.js` - 개발용 스텁 데이터, `index.html`에서는 미사용
-- `data/ko_quotes.js` - 생성된 한국어 인용문 데이터셋(데이터 빌드 단계 소유)
-- `scripts/build_ko_quotes.py` - 데이터 빌드 스크립트(ko.wikisource fetch, 추출, 검증)
-- `manifest.webmanifest`, `sw.js`, `assets/icons/` - PWA 설치/거치용(매니페스트, 서비스워커, 아이콘)
-- `data/ko_sources/` - fetch한 원문 캐시(재현·검증용)
-- `data/ko_coverage.json` - 출처 목록, 시간대별 커버리지, 검증 통계
+이후 `http://localhost:4173`을 엽니다. Android Chrome과 iOS Safari에서는 브라우저 메뉴의 홈 화면 추가 또는 앱 설치 기능을 사용할 수 있습니다.
 
-## 데이터 생성
+## 데스크톱 앱
 
-`python3 scripts/build_ko_quotes.py` 로 재생성한다(캐시 재사용, `--refresh`로 강제 재fetch).
+데스크톱 빌드는 원격 웹사이트를 불러오지 않습니다. `scripts/prepare_desktop.mjs`가 릴리스에 필요한 웹 파일만 `desktop/dist/`로 복사하고 SHA-256 빌드 명세를 만든 뒤, Tauri가 그 디렉터리를 앱에 포함합니다.
 
-동작: ko.wikisource의 한국 근대문학 공개저작 원문을 내려받아, 시각 표현(자정·새벽·
-아침·정오·저녁·밤 등 시간대와 "N시/N시 반" 정밀 표현)이 들어간 문장을 정규식으로
-추출한다. **모든 인용문은 내려받은 원문의 부분 문자열임을 코드로 검증**하여 날조를
-차단한다(원문 882문장, substring 검증 100%).
+```bash
+cd desktop
+npm ci
+npm run icons
+npm run check
+npm run build
+```
 
-## 분 단위 커버리지 (하이브리드)
+Windows에서는 Visual Studio Build Tools와 WebView2, macOS에서는 Xcode Command Line Tools가 필요합니다. 자세한 내용은 [desktop/README.md](desktop/README.md)를 확인하세요.
 
-한국 근대문학은 분 단위 시각을 거의 쓰지 않아 원문만으로는 시간대·시(hour) 수준까지만
-가능하다. 그래서 하이브리드 구성을 쓴다.
+## 데이터 구성
 
-- **원문(kind=원문)**: 저작권 만료 한국문학 발췌 882문장(정밀 57 + 시간대 825).
-- **번역(kind=역)**: 실제 출판 문학(영어 등)의 분 단위 인용을 한국어로 옮긴 1440문장.
+- `kind=원문`: 한국어 공개저작 원문에서 발췌하고 원문 캐시와 부분 문자열 일치 여부를 확인한 항목
+- `kind=역`: 외국 문학의 시각 문장을 한국어로 옮긴 항목
+- `precise`: 특정 `HH:MM`에 대응하는 문장
+- `buckets`: 새벽·아침·저녁처럼 시간대에 대응하는 한국어 원문
 
-**1440분 전부가 자기 분에 해당하는 실제 문학 인용구를 가진다.** 매칭 우선순위: 해당
-분에 한국문학 원문이 있으면 원문 우선(57개 정밀 시각), 없으면 번역문. 지어낸 문장(창작)은
-없다. 대다수 분은 Guardian 유래 문학시계 데이터에서, 그 데이터에도 없던 8개 희귀 시각
-(06:07, 06:18, 08:21, 10:28, 11:46, 12:31, 13:36, 18:44)은 추가 literary-clock
-fork(cdmoro 등)와 원문 대조로 실제 인용구를 찾아 채웠다. 번역문은 화면에서 "역" 배지로
-구분 표기하며, 원저자가 쓴 한국어 원문이 아니라 번역 결과임에 유의.
+정밀 데이터는 24시간 키를 사용합니다. 화면에서는 12시간 표기를 선택할 수 있지만 오전과 오후는 서로 다른 데이터 키로 유지합니다. 오전·오후를 확정할 문맥 단서가 없는 한국어 원문은 정밀 데이터에서 제외하며, 번역 항목은 상류 24시간 키의 시간대를 보존합니다. 번역의 시간대 근거는 `period_review_status`로 명시·문맥·모호·미검토를 구분하고, 모호한 항목은 앱에도 경고합니다. 부분 문자열 검증은 텍스트가 원문에 존재함을 확인할 뿐, 시각 의미·권리 상태까지 자동으로 증명하지는 않습니다.
 
-## 데이터 출처와 저작권
+현재 번역 1,440개는 모두 실제 영어 원문 발췌를 보존합니다. 1,428개는 `data/quotes.json`의 정확한 개별 행에 고정했고, 별도로 교체한 12개는 출전 URL을 기록했으며 그중 8개는 1차 출전까지 확인했습니다. 종전 후보 338개와 미매핑 281개는 전수 검토해 `source_row_reviewed` 619개로 확정했으며 `needs_*`와 후보 상태는 남아 있지 않습니다. 다만 원문 행 매핑, 오전·오후 확정, 이용 권리는 서로 다른 문제입니다. 전체 결과와 18:44 교체 근거는 [출전 감사 보고서](docs/SOURCE_AUDIT.md), 최신 수치는 `data/ko_coverage.json`에서 확인할 수 있습니다.
 
-원문(kind=원문) 인용문은 저자 사후 70년이 지나 저작권이 만료된 한국 근대문학 작품에서
-발췌했다. 출처: ko.wikisource.org. 사용 작가(사망연도): 현진건(1943), 김동인(1951),
-나도향(1926), 이상(1937), 김유정(1937), 이효석(1942), 최서해(1932),
-심훈(1936), 이광수(1950), 채만식(1950), 나혜석(1948). 작품별 출처는
-`data/ko_coverage.json` 참고.
+영문 데이터 편집물과 그 파생 데이터에는 [CC BY-NC-SA 2.5](data/LITERATURE_CLOCK_LICENSE.md)가 적용되며, 인용문과 번역문에는 코드의 MIT 라이선스가 적용되지 않습니다. 배포나 재사용 전 반드시 [DATA_LICENSE.md](DATA_LICENSE.md)를 읽으세요.
 
-개념 원안은 Jaap Meijers의 literature clock 및 Author Clock 프로젝트.
+## 데이터 도구
 
-## License
+- `scripts/build_quotes.py`: canonical literature-clock CSV를 파싱해 영어 원본 데이터 산출물을 생성
+- `data/ko_translations.json`: 1,440분 번역 항목의 생성 정본
+- `scripts/curate_translation_corpus.mjs`: 번역 정본의 오탐 교체·출전 메타데이터 정리
+- `scripts/build_ko_quotes.py`: 캐시된 한국어 위키문헌 원문을 보수적으로 추출하고 번역 정본과 병합
+- `scripts/audit_data.mjs`: 1,440키, 필드, 오전/오후와 정밀 일치 계약 검사
+- `data/ko_coverage.json`: 한국어 원문 추출과 번역 출전·시간대 검토 통계
+- `data/ko_sources/`: 검증에 사용한 원문 캐시
 
-코드: MIT. 인용문 텍스트는 위 공개저작(퍼블릭 도메인) 작품에서 발췌한 것이다.
+기본 빌드는 네트워크를 사용하지 않습니다. 위키문헌 캐시를 새로 받는
+`--refresh`는 검토되지 않은 upstream 변경을 가져올 수 있습니다. 릴리스에서는
+`python scripts/build_ko_quotes.py --check`로 커밋된 입력과 생성 결과가
+바이트 단위로 일치하는지 확인합니다.
+
+## 저장소 구조
+
+- `index.html`, `assets/`, `manifest.webmanifest`, `sw.js`: 웹/PWA
+- `data/`: 인용문 데이터, 출처 캐시와 커버리지 보고서
+- `scripts/`: 데이터 및 데스크톱 번들 생성 도구
+- `desktop/`: Tauri 2 데스크톱 앱
+- `firmware/`: Waveshare ESP32-S3-RLCD-4.2용 ESP-IDF/PlatformIO 펌웨어
+- `.github/workflows/`: 검증, Pages 배포, 데스크톱 빌드 자동화
+
+## 품질 원칙
+
+문장을 새로 지어 인용문처럼 넣지 않습니다. 새 항목은 작품명, 저자, 정확한 출처 URL, 원문 시각 표현, `HH:MM` 해석, 원문/번역 구분과 권리 근거가 있어야 합니다. 자동 검사는 오탐을 줄이는 첫 단계이며, 최종 반영에는 사람이 문맥을 확인해야 합니다.
+
+기여 절차는 [CONTRIBUTING.md](CONTRIBUTING.md), 보안 문제는 [SECURITY.md](SECURITY.md), 출처와 제3자 고지는 [NOTICE.md](NOTICE.md)를 따릅니다.
+
+## 라이선스
+
+저장소의 자체 코드에는 [MIT License](LICENSE)가 적용됩니다. 인용문, 번역문, 데이터베이스, 폰트, 이미지 등 제3자 자료는 각각의 권리 조건을 따르며 MIT 라이선스 범위 밖입니다. 자세한 구분은 [DATA_LICENSE.md](DATA_LICENSE.md)와 [NOTICE.md](NOTICE.md)에 있습니다.

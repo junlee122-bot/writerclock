@@ -1,91 +1,198 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="theme-color" content="#f6efe1" media="(prefers-color-scheme: light)" />
-  <meta name="theme-color" content="#1b1a17" media="(prefers-color-scheme: dark)" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#f4efe5" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#171714" media="(prefers-color-scheme: dark)" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="작가시계" />
-  <title>작가시계 - 문학이 알려주는 시간</title>
-  <meta name="description" content="1,440개의 분마다 한국 문학 속 그 시각의 문장을 보여주는 시계. 채만식, 도스토옙스키, 박태원의 문장으로 시간을 읽습니다." />
+  <title>작가시계 — 문학으로 읽는 매분</title>
+  <meta name="description" content="하루 1,440분마다 해당 시각 표현이 들어간 문학 데이터 문장을 보여주는 설치형 문학 시계." />
   <meta name="robots" content="index,follow" />
-  <link rel="canonical" href="https://gyuminlee-repo.github.io/author-clock/" />
+  <link rel="canonical" href="https://junlee122-bot.github.io/writerclock/" />
   <meta property="og:type" content="website" />
-  <meta property="og:url" content="https://gyuminlee-repo.github.io/author-clock/" />
-  <meta property="og:title" content="작가시계 - 문학이 알려주는 시간" />
-  <meta property="og:description" content="1,440개의 분마다 한국 문학 속 그 시각의 문장을 보여주는 시계. 채만식, 도스토옙스키, 박태원의 문장으로 시간을 읽습니다." />
-  <meta property="og:image" content="https://gyuminlee-repo.github.io/author-clock/assets/og-image.png" />
+  <meta property="og:url" content="https://junlee122-bot.github.io/writerclock/" />
+  <meta property="og:title" content="작가시계 — 문학으로 읽는 매분" />
+  <meta property="og:description" content="하루 1,440분을 문학 속 시간 표현과 함께 읽습니다." />
+  <meta property="og:image" content="https://junlee122-bot.github.io/writerclock/assets/og-image.png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta property="og:site_name" content="작가시계" />
   <meta property="og:locale" content="ko_KR" />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="작가시계 - 문학이 알려주는 시간" />
-  <meta name="twitter:description" content="1,440개의 분마다 한국 문학 속 그 시각의 문장을 보여주는 시계. 채만식, 도스토옙스키, 박태원의 문장으로 시간을 읽습니다." />
-  <meta name="twitter:image" content="https://gyuminlee-repo.github.io/author-clock/assets/og-image.png" />
+  <meta name="twitter:title" content="작가시계 — 문학으로 읽는 매분" />
+  <meta name="twitter:description" content="하루 1,440분을 문학 속 시간 표현과 함께 읽습니다." />
+  <meta name="twitter:image" content="https://junlee122-bot.github.io/writerclock/assets/og-image.png" />
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
     "@type": "WebApplication",
     "name": "작가시계",
-    "url": "https://gyuminlee-repo.github.io/author-clock/",
-    "description": "1,440개의 분마다 한국 문학 속 그 시각의 문장을 보여주는 시계. 채만식, 도스토옙스키, 박태원의 문장으로 시간을 읽습니다.",
+    "url": "https://junlee122-bot.github.io/writerclock/",
+    "description": "하루 1,440분마다 그 시각을 언급한 문학 문장을 보여주는 시계",
     "applicationCategory": "LifestyleApplication",
+    "operatingSystem": "Any",
     "inLanguage": "ko",
     "isAccessibleForFree": true,
-    "creator": {
-      "@type": "Person",
-      "name": "Gyumin Lee"
-    }
+    "codeRepository": "https://github.com/junlee122-bot/writerclock"
   }
   </script>
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png" />
   <link rel="icon" href="assets/icons/favicon-32.png" />
   <link rel="stylesheet" href="assets/style.css" />
-  <!-- analytics: docs/analytics-setup.md 참조. 측정ID 발급 후 이 아래에 스니펫 붙여넣기 -->
 </head>
 <body>
-  <div id="controls">
-    <button id="theme-toggle" type="button" aria-label="테마: 자동">자동</button>
-    <button id="dock-toggle" type="button" aria-label="거치 모드 꺼짐">거치 모드</button>
-    <button id="save-toggle" type="button" aria-label="문장 저장" aria-pressed="false">♡</button>
-    <button id="share-toggle" type="button" aria-label="문장 공유">공유</button>
-    <button id="fullscreen-toggle" type="button" aria-label="전체화면" hidden>전체화면</button>
-    <button id="settings-toggle" type="button" aria-label="설정" aria-haspopup="true" aria-expanded="false">설정</button>
-  </div>
+  <a class="skip-link" href="#quote">문장으로 건너뛰기</a>
 
-  <div id="settings-panel" role="dialog" aria-label="설정 패널" hidden>
-    <div class="settings-row">
-      <label for="dim-slider">밝기 조절</label>
-      <input type="range" id="dim-slider" min="0" max="0.8" step="0.05" value="0" aria-label="화면 어둡게 하기" />
+  <header class="app-header">
+    <a class="brand" href="./" aria-label="작가시계 현재 시각으로">
+      <span class="brand-mark" aria-hidden="true">文</span>
+      <span>작가시계</span>
+    </a>
+    <div class="header-actions" aria-label="앱 메뉴">
+      <span id="connection-status" class="connection-status" role="status" hidden>오프라인</span>
+      <button id="install-button" class="quiet-button" type="button" hidden>설치</button>
+      <button id="library-button" class="icon-button" type="button" aria-label="저장한 문장 열기" aria-haspopup="dialog">♡</button>
+      <button id="settings-button" class="icon-button" type="button" aria-label="설정 열기" aria-haspopup="dialog">Aa</button>
+      <button id="info-button" class="icon-button" type="button" aria-label="작가시계 정보 열기" aria-haspopup="dialog">i</button>
     </div>
-    <div class="settings-row">
-      <span id="font-scale-label">글자 크기</span>
-      <div class="font-scale-group" role="group" aria-labelledby="font-scale-label">
-        <button type="button" class="font-scale-btn" data-scale="small" aria-label="글자 작게" aria-pressed="false">작게</button>
-        <button type="button" class="font-scale-btn" data-scale="normal" aria-label="글자 보통" aria-pressed="true">보통</button>
-        <button type="button" class="font-scale-btn" data-scale="large" aria-label="글자 크게" aria-pressed="false">크게</button>
-      </div>
-    </div>
-    <div class="settings-row settings-row-favorites">
-      <span id="favorites-label">저장한 문장</span>
-      <div id="favorites-list" role="list" aria-labelledby="favorites-label"></div>
-    </div>
-  </div>
+  </header>
 
-  <div id="big-clock" aria-hidden="true"><span class="big-time"></span><span class="big-ampm"></span></div>
+  <main class="clock-shell">
+    <section class="time-heading" aria-label="표시 중인 시각">
+      <p id="mode-label" class="eyebrow">현재 시각</p>
+      <time id="clock" class="clock" datetime="">--:--</time>
+      <p id="date-label" class="date-label"></p>
+    </section>
 
-  <main id="stage">
-    <p id="quote" role="text"></p>
-    <p id="source"></p>
+    <article id="stage" class="quote-stage" aria-live="polite" aria-busy="true">
+      <blockquote id="quote" class="quote-text">문장을 불러오는 중입니다.</blockquote>
+      <footer class="quote-meta">
+        <cite id="source"></cite>
+        <span id="quote-badges" class="quote-badges" aria-label="문장 정보"></span>
+      </footer>
+      <p id="quote-error" class="quote-error" role="alert" hidden></p>
+    </article>
+
+    <nav class="time-navigation" aria-label="시간 탐색">
+      <button id="previous-minute" class="nav-button" type="button" aria-label="1분 전">−1</button>
+      <label class="time-picker-label" for="time-picker">
+        <span class="visually-hidden">볼 시각 선택</span>
+        <input id="time-picker" type="time" step="60" aria-label="볼 시각 선택" />
+      </label>
+      <button id="now-button" class="nav-button nav-button-primary" type="button">현재</button>
+      <button id="next-minute" class="nav-button" type="button" aria-label="1분 뒤">+1</button>
+    </nav>
+
+    <div class="quote-actions" aria-label="현재 문장 작업">
+      <button id="shuffle-button" type="button">같은 시각의 다른 문장</button>
+      <button id="favorite-button" type="button" aria-pressed="false">♡ 저장</button>
+      <button id="share-button" type="button">공유</button>
+    </div>
+
+    <p class="keyboard-hint">← → 시각 이동 · Space 다른 문장 · N 현재 시각</p>
   </main>
 
-  <div id="digital-clock" aria-hidden="true"></div>
+  <dialog id="settings-dialog" class="panel-dialog" aria-labelledby="settings-title">
+    <form method="dialog" class="dialog-header">
+      <h2 id="settings-title">보기와 거치 설정</h2>
+      <button class="dialog-close" value="close" aria-label="설정 닫기">×</button>
+    </form>
+    <div class="dialog-body settings-grid">
+      <fieldset>
+        <legend>화면 테마</legend>
+        <div class="segmented" id="theme-controls">
+          <button type="button" data-theme="auto" aria-pressed="true">자동</button>
+          <button type="button" data-theme="light" aria-pressed="false">밝게</button>
+          <button type="button" data-theme="dark" aria-pressed="false">어둡게</button>
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend>글자 크기</legend>
+        <div class="segmented" id="font-controls">
+          <button type="button" data-font="small" aria-pressed="false">작게</button>
+          <button type="button" data-font="normal" aria-pressed="true">보통</button>
+          <button type="button" data-font="large" aria-pressed="false">크게</button>
+        </div>
+      </fieldset>
+      <label class="range-setting" for="dim-slider">
+        <span>화면 어둡게</span>
+        <input id="dim-slider" type="range" min="0" max="0.8" value="0" step="0.05" />
+      </label>
+      <label class="switch-setting" for="dock-toggle">
+        <span>
+          <strong>거치 모드</strong>
+          <small>화면 켜짐 유지, 야간 감광, 번인 방지 이동</small>
+        </span>
+        <input id="dock-toggle" type="checkbox" role="switch" />
+      </label>
+      <label class="switch-setting" for="original-toggle">
+        <span>
+          <strong>한국어 원문 우선</strong>
+          <small>같은 시각에 공개저작 원문이 있으면 먼저 표시</small>
+        </span>
+        <input id="original-toggle" type="checkbox" role="switch" checked />
+      </label>
+      <button id="fullscreen-button" class="wide-button" type="button">전체 화면</button>
+      <button id="update-button" class="wide-button" type="button" hidden>새 버전으로 새로고침</button>
+    </div>
+  </dialog>
+
+  <dialog id="library-dialog" class="panel-dialog panel-dialog-wide" aria-labelledby="library-title">
+    <form method="dialog" class="dialog-header">
+      <div>
+        <h2 id="library-title">저장한 문장</h2>
+        <p id="library-count" class="dialog-subtitle">0개</p>
+      </div>
+      <button class="dialog-close" value="close" aria-label="저장한 문장 닫기">×</button>
+    </form>
+    <div class="dialog-body">
+      <label class="search-field" for="library-search">
+        <span class="visually-hidden">저장한 문장 검색</span>
+        <input id="library-search" type="search" placeholder="문장, 작품, 작가 검색" />
+      </label>
+      <div id="favorites-list" class="favorites-list" role="list"></div>
+      <div class="library-tools">
+        <button id="export-favorites" type="button">JSON 내보내기</button>
+        <button id="import-favorites-button" class="file-button" type="button">JSON 가져오기</button>
+        <input id="import-favorites" type="file" accept="application/json,.json" hidden />
+        <button id="clear-favorites" class="danger-button" type="button">모두 지우기</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="info-dialog" class="panel-dialog panel-dialog-wide" aria-labelledby="info-title">
+    <form method="dialog" class="dialog-header">
+      <h2 id="info-title">이 문장과 작가시계</h2>
+      <button class="dialog-close" value="close" aria-label="정보 닫기">×</button>
+    </form>
+    <div class="dialog-body info-copy">
+      <dl class="quote-details">
+        <div><dt>표시 시각</dt><dd id="detail-time">—</dd></div>
+        <div><dt>시간 표현</dt><dd id="detail-expression">—</dd></div>
+        <div><dt>작품</dt><dd id="detail-title">—</dd></div>
+        <div><dt>작가</dt><dd id="detail-author">—</dd></div>
+        <div><dt>형태</dt><dd id="detail-kind">—</dd></div>
+        <div><dt>출전 상태</dt><dd id="detail-review">—</dd></div>
+        <div><dt>시간대 상태</dt><dd id="detail-period">—</dd></div>
+        <div><dt>내용 주의</dt><dd id="detail-warning">—</dd></div>
+        <div><dt>원문 시각</dt><dd id="detail-source-expression">—</dd></div>
+        <div><dt>원문 작품</dt><dd id="detail-source-title">—</dd></div>
+        <div><dt>원문 작가</dt><dd id="detail-source-author">—</dd></div>
+        <div><dt>영어 원문</dt><dd id="detail-source-quote" class="detail-source-quote">—</dd></div>
+        <div><dt>출전 링크</dt><dd><a id="detail-source-link" target="_blank" rel="noopener noreferrer" hidden>원문 출전 열기</a></dd></div>
+      </dl>
+      <p>매분에는 해당 시각으로 분류된 문장만 표시합니다. 정밀 문장이 없을 때 다른 시간대 문장을 대신 보여주지 않으며, 데이터 감사도 이 규칙을 검사합니다.</p>
+      <p>‘원문’은 한국어 공개저작에서 발췌한 문장, ‘번역’은 외국 문학의 시간 문장을 한국어로 옮긴 항목입니다. 번역 인용문의 권리와 출처는 <a href="DATA_LICENSE.md">데이터 권리 안내</a>를 확인하세요.</p>
+      <p class="info-links"><a href="https://github.com/junlee122-bot/writerclock" target="_blank" rel="noopener noreferrer">소스 코드</a><a href="NOTICE.md">출처와 기여</a></p>
+    </div>
+  </dialog>
 
   <div id="night-dim" aria-hidden="true"></div>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
   <script src="data/ko_quotes.js"></script>
   <script src="assets/app.js"></script>

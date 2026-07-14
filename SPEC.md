@@ -1,4 +1,10 @@
-# Author Clock, Build Spec (shared contract)
+# Author Clock, 상류 Build Spec (보존 문서)
+
+> **상태: 상류 설계 기록, 현재 구현 계약 아님.** 가장 가까운 분 폴백과 초기 SFW
+> 정책 등 아래 요구사항은 원본 스냅숏을 설명합니다. WriterClock의 현재 구현은
+> 다른 분으로 폴백하지 않는 24시간 exact-only 계약을 사용합니다. 실제 계약은
+> `README.md`, `DATA_LICENSE.md`, `data/ko_coverage.json`,
+> `scripts/audit_data.mjs`를 따릅니다.
 
 문학 인용구로 시각을 표시하는 로컬 웹앱. Guardian 유래 `litclock_annotated.csv` 데이터 기반.
 참고 구현: ambercaravalho/open-author-clock (GPL-3.0), cdmoro/literature-clock (MIT).

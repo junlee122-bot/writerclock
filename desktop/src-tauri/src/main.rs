@@ -4,24 +4,19 @@
 use tauri::{
     menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Manager,
+    Manager, WindowEvent,
 };
 
 fn main() {
     tauri::Builder::default()
         .setup(|app| {
-            // Tray menu: checkable "always on top" (default on), separator, quit.
-            let always_on_top_i = CheckMenuItem::with_id(
-                app,
-                "always_on_top",
-                "항상 위",
-                true,
-                true,
-                None::<&str>,
-            )?;
+            // Tray menu: explicit restore, checkable "always on top", separator, quit.
+            let show_i = MenuItem::with_id(app, "show", "작가시계 열기", true, None::<&str>)?;
+            let always_on_top_i =
+                CheckMenuItem::with_id(app, "always_on_top", "항상 위", true, true, None::<&str>)?;
             let separator = PredefinedMenuItem::separator(app)?;
             let quit_i = MenuItem::with_id(app, "quit", "종료", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&always_on_top_i, &separator, &quit_i])?;
+            let menu = Menu::with_items(app, &[&show_i, &always_on_top_i, &separator, &quit_i])?;
 
             // Clone the check item so the menu-event closure can read its state.
             let toggle_item = always_on_top_i.clone();
@@ -32,6 +27,13 @@ fn main() {
                 .menu(&menu)
                 .show_menu_on_left_click(false)
                 .on_menu_event(move |app, event| match event.id.as_ref() {
+                    "show" => {
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.unminimize();
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
+                    }
                     "always_on_top" => {
                         // The native check item toggles itself on click; read the new state
                         // and sync the main window accordingly.
@@ -64,6 +66,12 @@ fn main() {
 
             Ok(())
         })
+        .on_window_event(|window, event| {
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                let _ = window.hide();
+                api.prevent_close();
+            }
+        })
         .run(tauri::generate_context!())
-        .expect("error while running AuthorClock");
+        .expect("error while running WriterClock");
 }

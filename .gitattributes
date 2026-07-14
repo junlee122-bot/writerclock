@@ -1,0 +1,26 @@
+* text=auto
+
+*.c text eol=lf
+*.cjs text eol=lf
+*.cpp text eol=lf
+*.h text eol=lf
+*.html text eol=lf
+*.js text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.mjs text eol=lf
+*.py text eol=lf
+*.rs text eol=lf
+*.sh text eol=lf
+*.toml text eol=lf
+*.txt text eol=lf
+*.webmanifest text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# These files are canonical source snapshots. Their original trailing spaces are
+# intentionally preserved because reproducibility checks use exact source text.
+data/ko_sources/*.txt whitespace=-trailing-space
+
+*.jpg binary
+*.png binary

@@ -1,0 +1,14 @@
+{
+  "name": "writerclock-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "prepare": "node ../scripts/prepare_desktop.mjs",
+    "icons": "tauri icon app-icon.png",
+    "check": "npm run prepare && tauri info",
+    "build": "tauri build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.11.4"
+  }
+}
