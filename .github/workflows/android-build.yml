@@ -1,0 +1,80 @@
+name: Android build
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "index.html"
+      - "manifest.webmanifest"
+      - "sw.js"
+      - "assets/**"
+      - "data/ko_quotes.js"
+      - "data/ko_coverage.json"
+      - "scripts/build_static_site.mjs"
+      - "package.json"
+      - "package-lock.json"
+      - "capacitor.config.json"
+      - "android/**"
+      - ".github/workflows/android-build.yml"
+  push:
+    branches: [main]
+    paths:
+      - "index.html"
+      - "manifest.webmanifest"
+      - "sw.js"
+      - "assets/**"
+      - "data/ko_quotes.js"
+      - "data/ko_coverage.json"
+      - "scripts/build_static_site.mjs"
+      - "package.json"
+      - "package-lock.json"
+      - "capacitor.config.json"
+      - "android/**"
+      - ".github/workflows/android-build.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Set up Java
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@0b6dd653ba04f4f93bf581ec31e66cbd7dcb644d # v4
+
+      - name: Install JavaScript dependencies
+        run: npm ci
+
+      - name: Audit data and sync Android assets
+        run: npm run check && npm run android:sync
+
+      - name: Build installable APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Name APK
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk WriterClock-Android-1.1.0.apk
+
+      - name: Upload Android APK
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: writerclock-android-apk
+          path: WriterClock-Android-1.1.0.apk
+          if-no-files-found: error
+          retention-days: 30

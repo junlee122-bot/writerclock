@@ -1,17 +1,29 @@
 {
   "name": "writerclock",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "description": "A dependency-free literary clock with an exact-time, review-status-labeled quote for every minute.",
   "scripts": {
     "test": "node --test tests/app.test.cjs tests/curation.test.mjs",
     "audit:data": "node scripts/audit_data.mjs",
     "check:static": "node scripts/check_static.mjs",
-    "check": "npm test && npm run audit:data && npm run check:static",
-    "build:static": "node scripts/build_static_site.mjs"
+    "check:android": "node scripts/check_android.mjs",
+    "check": "npm test && npm run audit:data && npm run check:static && npm run check:android",
+    "build:static": "node scripts/build_static_site.mjs",
+    "android:sync": "npm run build:static && cap sync android",
+    "android:open": "npm run android:sync && cap open android",
+    "android:apk": "npm run android:sync && cd android && gradlew.bat assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.4.2",
+    "@capacitor/core": "8.4.2"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "3.0.5",
+    "@capacitor/cli": "8.4.2"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "license": "MIT"
 }

@@ -1,17 +1,17 @@
 :root {
-  --bg: #f4efe5;
-  --surface: rgba(255, 252, 245, 0.76);
-  --surface-solid: #fffaf0;
-  --fg: #29231d;
-  --muted: #766b5d;
-  --faint: #6f6558;
-  --accent: #a0522d;
+  --bg: #eee8dc;
+  --surface: rgba(250, 247, 239, 0.72);
+  --surface-solid: #f8f4ea;
+  --fg: #1c211d;
+  --muted: #666b63;
+  --faint: #747970;
+  --accent: #b25837;
   --candidate: #6b4b0a;
   --warning: #8c3028;
   --danger: #8c3028;
   --accent-soft: rgba(160, 82, 45, 0.12);
-  --line: rgba(41, 35, 29, 0.14);
-  --shadow: 0 24px 70px rgba(76, 53, 30, 0.09);
+  --line: rgba(28, 33, 29, 0.14);
+  --shadow: 0 26px 80px rgba(45, 37, 26, 0.12);
   --quote-scale: 1;
   --safe-top: max(1rem, env(safe-area-inset-top));
   --safe-right: max(1rem, env(safe-area-inset-right));
@@ -21,13 +21,13 @@
 }
 
 :root.theme-dark {
-  --bg: #171714;
-  --surface: rgba(35, 34, 29, 0.82);
-  --surface-solid: #24231e;
-  --fg: #eee7d9;
-  --muted: #afa493;
-  --faint: #9a9184;
-  --accent: #dda56e;
+  --bg: #10110f;
+  --surface: rgba(28, 30, 27, 0.78);
+  --surface-solid: #1b1d1a;
+  --fg: #f0ece2;
+  --muted: #a7aaa2;
+  --faint: #8e928b;
+  --accent: #e2986c;
   --candidate: #f0c76f;
   --warning: #ff9d8f;
   --danger: #ff9d8f;
@@ -39,13 +39,13 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not(.theme-light):not(.theme-dark) {
-    --bg: #171714;
-    --surface: rgba(35, 34, 29, 0.82);
-    --surface-solid: #24231e;
-    --fg: #eee7d9;
-    --muted: #afa493;
-    --faint: #9a9184;
-    --accent: #dda56e;
+    --bg: #10110f;
+    --surface: rgba(28, 30, 27, 0.78);
+    --surface-solid: #1b1d1a;
+    --fg: #f0ece2;
+    --muted: #a7aaa2;
+    --faint: #8e928b;
+    --accent: #e2986c;
     --candidate: #f0c76f;
     --warning: #ff9d8f;
     --danger: #ff9d8f;
@@ -71,7 +71,8 @@ body {
   margin: 0;
   overflow-x: hidden;
   background:
-    radial-gradient(circle at 14% 12%, var(--accent-soft), transparent 34rem),
+    radial-gradient(circle at 16% 18%, var(--accent-soft), transparent 34rem),
+    radial-gradient(circle at 86% 82%, color-mix(in srgb, var(--accent), transparent 94%), transparent 30rem),
     var(--bg);
   color: var(--fg);
   font-family: "Apple SD Gothic Neo", "Pretendard", "Noto Sans KR", system-ui, sans-serif;
@@ -170,6 +171,7 @@ a {
 
 .icon-button,
 .quiet-button,
+.dock-button,
 .nav-button,
 .quote-actions button,
 .wide-button,
@@ -196,6 +198,21 @@ a {
   padding: 0 0.9rem;
   border-radius: 999px;
   font-size: 0.82rem;
+}
+
+.dock-button {
+  min-height: 2.45rem;
+  padding: 0 1rem;
+  border-radius: 999px;
+  background: var(--fg);
+  color: var(--surface-solid);
+  font-size: 0.78rem;
+  font-weight: 720;
+  letter-spacing: -0.01em;
+}
+
+:root.theme-dark .dock-button {
+  color: #10110f;
 }
 
 .connection-status {
@@ -895,5 +912,365 @@ body.dock-mode.controls-visible .keyboard-hint {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
+  }
+}
+
+/* Living-room clock layout */
+body::before {
+  content: "";
+  position: fixed;
+  z-index: -1;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.38;
+  background-image: radial-gradient(circle, color-mix(in srgb, var(--fg), transparent 88%) 0.55px, transparent 0.7px);
+  background-size: 5px 5px;
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.65), transparent 78%);
+}
+
+.clock-shell {
+  max-width: 104rem;
+  padding: clamp(5.8rem, 10vh, 8.5rem) clamp(var(--safe-right), 4vw) calc(2rem + var(--safe-bottom)) clamp(var(--safe-left), 4vw);
+  grid-template-rows: auto minmax(17rem, 1fr) auto auto auto;
+  gap: clamp(1rem, 2.8vh, 2.4rem);
+}
+
+.time-heading,
+.quote-stage {
+  transform: translate(var(--drift-x, 0), var(--drift-y, 0));
+  transition: opacity 180ms ease, transform 4s ease;
+}
+
+.time-heading {
+  position: relative;
+}
+
+.clock-lockup {
+  display: inline-grid;
+  grid-template-columns: auto auto;
+  grid-template-rows: auto auto;
+  align-items: end;
+  justify-content: center;
+  column-gap: clamp(0.6rem, 1.5vw, 1.25rem);
+}
+
+.period-label {
+  grid-column: 1;
+  grid-row: 1;
+  align-self: start;
+  margin-top: 0.16em;
+  color: var(--accent);
+  font-size: clamp(0.72rem, 1vw, 0.92rem);
+  font-weight: 750;
+  letter-spacing: 0.16em;
+}
+
+.clock {
+  grid-column: 2;
+  grid-row: 1 / 3;
+  font-family: "Helvetica Neue", "Avenir Next", "Pretendard", system-ui, sans-serif;
+  font-size: clamp(4.8rem, 14vw, 12.5rem);
+  font-weight: 280;
+  letter-spacing: -0.085em;
+  line-height: 0.82;
+}
+
+.clock-seconds {
+  grid-column: 1;
+  grid-row: 2;
+  align-self: end;
+  color: var(--muted);
+  font-size: clamp(1.15rem, 2.3vw, 2.15rem);
+  font-variant-numeric: tabular-nums;
+  font-weight: 420;
+  letter-spacing: 0.04em;
+  line-height: 0.9;
+}
+
+.date-label {
+  margin-top: clamp(1rem, 2vh, 1.5rem);
+  font-size: clamp(0.82rem, 1.2vw, 1.05rem);
+  font-weight: 560;
+  letter-spacing: -0.01em;
+}
+
+.minute-progress {
+  width: min(23rem, 72vw);
+  height: 2px;
+  margin: 1.1rem auto 0;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--line);
+}
+
+.minute-progress span {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 900ms linear;
+}
+
+.quote-stage {
+  width: min(100%, 68rem);
+}
+
+.quote-kicker {
+  display: flex;
+  align-items: center;
+  width: min(100%, 48rem);
+  gap: 0.75rem;
+  margin: 0 0 clamp(1rem, 2.4vh, 1.8rem);
+  color: var(--accent);
+  font-size: 0.66rem;
+  font-weight: 760;
+  letter-spacing: 0.18em;
+}
+
+.quote-kicker::before,
+.quote-kicker::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+.quote-text {
+  max-width: 29em;
+  font-size: calc(clamp(1.55rem, 2.4vw + 0.6rem, 3.35rem) * var(--quote-scale));
+  line-height: 1.48;
+  letter-spacing: -0.035em;
+}
+
+.quote-text::before {
+  content: "“";
+  margin-right: 0.04em;
+  color: color-mix(in srgb, var(--accent), transparent 35%);
+}
+
+.quote-text::after {
+  content: "”";
+  margin-left: 0.04em;
+  color: color-mix(in srgb, var(--accent), transparent 35%);
+}
+
+.quote-text .time-phrase {
+  font-style: normal;
+  font-weight: 650;
+  text-decoration-thickness: 0.06em;
+}
+
+.quote-meta {
+  margin-top: clamp(1.2rem, 2.6vh, 2rem);
+  font-size: calc(clamp(0.88rem, 1vw, 1.02rem) * var(--quote-scale));
+}
+
+body.dock-mode:not(.controls-visible) {
+  cursor: none;
+}
+
+body.dock-mode .clock-shell {
+  padding-top: max(3.5vh, var(--safe-top));
+  padding-bottom: max(3.5vh, var(--safe-bottom));
+}
+
+body.dock-mode .quote-badges,
+body.dock-mode .quote-kicker {
+  display: none;
+}
+
+body.dock-mode .quote-meta {
+  margin-top: clamp(1.4rem, 3.5vh, 2.6rem);
+}
+
+@media (orientation: landscape) and (min-width: 720px) {
+  .clock-shell {
+    grid-template-columns: minmax(23rem, 0.92fr) minmax(28rem, 1.08fr);
+    grid-template-rows: minmax(0, 1fr) auto auto;
+    column-gap: clamp(3rem, 7vw, 9rem);
+  }
+
+  .time-heading {
+    justify-self: end;
+    width: 100%;
+    text-align: right;
+  }
+
+  .clock-lockup {
+    justify-content: end;
+  }
+
+  .clock {
+    font-size: clamp(6rem, 12vw, 12.5rem);
+  }
+
+  .minute-progress {
+    margin-right: 0;
+    margin-left: auto;
+  }
+
+  .quote-stage {
+    position: relative;
+    align-items: flex-start;
+    width: 100%;
+    padding-left: clamp(2.5rem, 5vw, 6rem);
+    text-align: left;
+  }
+
+  .quote-stage::before {
+    content: "";
+    position: absolute;
+    top: 6%;
+    bottom: 6%;
+    left: 0;
+    width: 1px;
+    background: linear-gradient(to bottom, transparent, var(--line) 16%, var(--line) 84%, transparent);
+  }
+
+  .quote-kicker {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .quote-kicker::before {
+    display: none;
+  }
+
+  .quote-kicker::after {
+    max-width: 7rem;
+  }
+
+  .quote-text {
+    max-width: 22em;
+    text-wrap: pretty;
+  }
+
+  .quote-meta {
+    justify-content: flex-start;
+  }
+}
+
+@media (min-width: 1280px) and (min-height: 720px) {
+  .clock {
+    font-size: clamp(8rem, 13vw, 14rem);
+  }
+
+  .quote-text {
+    font-size: calc(clamp(2.2rem, 2.75vw, 3.8rem) * var(--quote-scale));
+  }
+}
+
+@media (max-width: 560px) {
+  .app-header {
+    width: 100vw;
+    max-width: 100vw;
+    gap: 0.45rem;
+    overflow: hidden;
+  }
+
+  .header-actions {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: none;
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+  }
+
+  .icon-button {
+    width: 2.25rem;
+    height: 2.25rem;
+    flex: 0 0 2.25rem;
+  }
+
+  .dock-button {
+    min-height: 2.25rem;
+    padding: 0 0.72rem;
+    flex: 0 0 auto;
+  }
+
+  .clock-shell {
+    width: 100%;
+    max-width: 100vw;
+    min-width: 0;
+    padding-top: 5.75rem;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(15rem, 1fr) auto auto;
+    overflow-x: clip;
+  }
+
+  .clock {
+    font-size: clamp(4.4rem, 24vw, 7.4rem);
+  }
+
+  .clock-seconds {
+    font-size: clamp(1rem, 5vw, 1.4rem);
+  }
+
+  .quote-kicker {
+    margin-bottom: 0.8rem;
+  }
+
+  .quote-stage {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .quote-text {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    font-size: calc(clamp(1.36rem, 6.2vw, 1.9rem) * var(--quote-scale));
+    line-height: 1.5;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+  }
+
+  .quote-stage[data-quote-length="medium"] .quote-text {
+    font-size: calc(clamp(1.22rem, 5.35vw, 1.62rem) * var(--quote-scale));
+  }
+
+  .quote-stage[data-quote-length="long"] .quote-text {
+    font-size: calc(clamp(1.08rem, 4.7vw, 1.42rem) * var(--quote-scale));
+    line-height: 1.44;
+  }
+
+  .quote-meta {
+    width: 100%;
+    min-width: 0;
+    font-size: 0.78rem;
+  }
+
+  .quote-badges {
+    display: none;
+  }
+}
+
+@media (max-height: 570px) and (orientation: landscape) {
+  .clock {
+    font-size: clamp(4.3rem, 15vh, 6.7rem);
+  }
+
+  .date-label,
+  .minute-progress,
+  .quote-kicker {
+    display: none;
+  }
+
+  .quote-text {
+    font-size: calc(clamp(1.08rem, 3.8vh + 0.4rem, 1.75rem) * var(--quote-scale));
+  }
+}
+
+@media (forced-colors: active) {
+  body::before {
+    display: none;
+  }
+
+  .dock-button {
+    border-color: ButtonText;
+    background: ButtonText;
+    color: ButtonFace;
   }
 }

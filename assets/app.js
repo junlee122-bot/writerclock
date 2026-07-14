@@ -209,9 +209,9 @@
 
   var elements = {};
   [
-    "clock", "mode-label", "date-label", "stage", "quote", "source", "quote-badges", "quote-error",
+    "clock", "clock-seconds", "period-label", "minute-progress-bar", "mode-label", "date-label", "stage", "quote", "source", "quote-badges", "quote-error",
     "previous-minute", "next-minute", "now-button", "time-picker", "shuffle-button", "favorite-button",
-    "share-button", "settings-button", "library-button", "info-button", "install-button", "connection-status",
+    "share-button", "settings-button", "library-button", "info-button", "install-button", "dock-button", "connection-status",
     "settings-dialog", "library-dialog", "info-dialog", "dim-slider", "dock-toggle", "original-toggle",
     "fullscreen-button", "update-button", "library-search", "favorites-list", "library-count",
     "export-favorites", "import-favorites-button", "import-favorites", "clear-favorites", "night-dim", "toast", "detail-time",
@@ -228,6 +228,7 @@
     currentQuote: null,
     recentByTime: Object.create(null),
     minuteTimer: null,
+    secondTimer: null,
     dockTimer: null,
     driftTimer: null,
     toastTimer: null,
@@ -318,13 +319,28 @@
   }
 
   function updateTimeHeading() {
+    var hour = Number(state.key.slice(0, 2));
     elements.clock.textContent = formatKoreanTime(state.key).replace(/^(오전|오후)\s/, "");
     elements.clock.dateTime = state.key;
+    elements["period-label"].textContent = hour < 12 ? "오전" : "오후";
     elements["mode-label"].textContent = state.live
-      ? (Number(state.key.slice(0, 2)) < 12 ? "오전 · 현재 시각" : "오후 · 현재 시각")
-      : "시간 탐색 · " + (Number(state.key.slice(0, 2)) < 12 ? "오전" : "오후");
+      ? "현재 시각 · LIVE"
+      : "시간 탐색";
     elements["date-label"].textContent = state.live ? displayDate(new Date()) : "선택한 시각의 문장";
     elements["time-picker"].value = state.key;
+  }
+
+  function updateSecondDisplay() {
+    clearTimeout(state.secondTimer);
+    var now = new Date();
+    if (state.live) {
+      elements["clock-seconds"].textContent = String(now.getSeconds()).padStart(2, "0");
+      elements["minute-progress-bar"].style.width = (((now.getSeconds() * 1000 + now.getMilliseconds()) / 60000) * 100).toFixed(2) + "%";
+    } else {
+      elements["clock-seconds"].textContent = "00";
+      elements["minute-progress-bar"].style.width = "0%";
+    }
+    state.secondTimer = setTimeout(updateSecondDisplay, 1000 - now.getMilliseconds() + 12);
   }
 
   function sourceText(item) {
@@ -391,6 +407,7 @@
     elements.stage.setAttribute("aria-busy", "false");
     state.currentQuote = item;
     if (!item) {
+      elements.stage.dataset.quoteLength = "short";
       elements.quote.textContent = "이 시각에 검증된 정밀 문장이 없습니다.";
       elements.source.textContent = "";
       elements["quote-badges"].innerHTML = badge("데이터 누락", "");
@@ -404,6 +421,8 @@
 
     var withTime = Object.assign({}, item, { time: state.key });
     state.currentQuote = withTime;
+    var quoteLength = plainQuote(item.q).length;
+    elements.stage.dataset.quoteLength = quoteLength > 180 ? "long" : quoteLength > 110 ? "medium" : "short";
     elements.quote.innerHTML = renderQuoteHtml(item.q, item.t);
     elements.source.textContent = sourceText(item);
     var badges = badge("분 단위 일치", "badge-exact");
@@ -686,6 +705,8 @@
     document.body.classList.toggle("dock-mode", enabled);
     document.body.classList.toggle("controls-visible", enabled);
     elements["dock-toggle"].checked = enabled;
+    elements["dock-button"].setAttribute("aria-pressed", enabled ? "true" : "false");
+    elements["dock-button"].textContent = enabled ? "거치 종료" : "거치 시계";
     if (enabled) requestWakeLock(); else releaseWakeLock();
     applyDim();
     resetDockControls();
@@ -698,20 +719,32 @@
     clearTimeout(state.dockTimer);
     state.dockTimer = setTimeout(function () {
       if (!document.querySelector("dialog[open]")) document.body.classList.remove("controls-visible");
-    }, 3500);
+    }, 5000);
   }
 
   function applyDrift() {
     clearTimeout(state.driftTimer);
     var enabled = document.body.classList.contains("dock-mode");
-    var target = elements.stage;
     if (!enabled) {
-      target.style.transform = "translate(0, 0)";
+      document.body.style.removeProperty("--drift-x");
+      document.body.style.removeProperty("--drift-y");
       return;
     }
     var t = Date.now() / 60000;
-    target.style.transform = "translate(" + (Math.sin(t) * 1.2).toFixed(2) + "vw," + (Math.cos(t * 0.73) * 1.2).toFixed(2) + "vh)";
+    document.body.style.setProperty("--drift-x", (Math.sin(t) * 0.8).toFixed(2) + "vw");
+    document.body.style.setProperty("--drift-y", (Math.cos(t * 0.73) * 0.8).toFixed(2) + "vh");
     state.driftTimer = setTimeout(applyDrift, 30000);
+  }
+
+  function toggleDockMode() {
+    var enabled = !document.body.classList.contains("dock-mode");
+    storageSet(DOCK_KEY, enabled ? "true" : "false");
+    applyDock(enabled);
+    if (enabled && !document.fullscreenElement && document.documentElement.requestFullscreen) {
+      document.documentElement.requestFullscreen().catch(function () {});
+    } else if (!enabled && document.fullscreenElement && document.exitFullscreen) {
+      document.exitFullscreen().catch(function () {});
+    }
   }
 
   function showDialog(dialog) {
@@ -789,6 +822,7 @@
     elements["shuffle-button"].addEventListener("click", function () { changeTime(state.key, state.live, true); });
     elements["favorite-button"].addEventListener("click", toggleCurrentFavorite);
     elements["share-button"].addEventListener("click", shareCurrent);
+    elements["dock-button"].addEventListener("click", toggleDockMode);
     elements["settings-button"].addEventListener("click", function () { showDialog(elements["settings-dialog"]); });
     elements["library-button"].addEventListener("click", function () { renderFavorites(); showDialog(elements["library-dialog"]); });
     elements["info-button"].addEventListener("click", function () { showDialog(elements["info-dialog"]); });
@@ -888,6 +922,7 @@
     chooseQuote(false);
     updateFavoriteButton();
     scheduleMinuteTick();
+    updateSecondDisplay();
     applyDim();
   }
 

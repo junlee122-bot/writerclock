@@ -1,0 +1,12 @@
+{
+  "appId": "io.github.junlee122.writerclock",
+  "appName": "WriterClock",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "backgroundColor": "#10110f",
+    "allowMixedContent": false
+  }
+}

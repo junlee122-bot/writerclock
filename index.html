@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#f4efe5" media="(prefers-color-scheme: light)" />
-  <meta name="theme-color" content="#171714" media="(prefers-color-scheme: dark)" />
+  <meta name="theme-color" content="#eee8dc" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#10110f" media="(prefers-color-scheme: dark)" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="작가시계" />
@@ -55,6 +55,7 @@
     <div class="header-actions" aria-label="앱 메뉴">
       <span id="connection-status" class="connection-status" role="status" hidden>오프라인</span>
       <button id="install-button" class="quiet-button" type="button" hidden>설치</button>
+      <button id="dock-button" class="dock-button" type="button" aria-pressed="false">거치 시계</button>
       <button id="library-button" class="icon-button" type="button" aria-label="저장한 문장 열기" aria-haspopup="dialog">♡</button>
       <button id="settings-button" class="icon-button" type="button" aria-label="설정 열기" aria-haspopup="dialog">Aa</button>
       <button id="info-button" class="icon-button" type="button" aria-label="작가시계 정보 열기" aria-haspopup="dialog">i</button>
@@ -64,11 +65,17 @@
   <main class="clock-shell">
     <section class="time-heading" aria-label="표시 중인 시각">
       <p id="mode-label" class="eyebrow">현재 시각</p>
-      <time id="clock" class="clock" datetime="">--:--</time>
+      <div class="clock-lockup">
+        <span id="period-label" class="period-label" aria-hidden="true">오전</span>
+        <time id="clock" class="clock" datetime="">--:--</time>
+        <span id="clock-seconds" class="clock-seconds" aria-label="초">--</span>
+      </div>
       <p id="date-label" class="date-label"></p>
+      <div class="minute-progress" aria-hidden="true"><span id="minute-progress-bar"></span></div>
     </section>
 
     <article id="stage" class="quote-stage" aria-live="polite" aria-busy="true">
+      <p class="quote-kicker"><span>이 시각의 문장</span></p>
       <blockquote id="quote" class="quote-text">문장을 불러오는 중입니다.</blockquote>
       <footer class="quote-meta">
         <cite id="source"></cite>
