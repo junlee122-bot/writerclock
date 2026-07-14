@@ -176,6 +176,9 @@
       sfw: item.sfw || "",
       review_status: item.review_status || "",
       source_match_basis: item.source_match_basis || "",
+      source_review_basis: item.source_review_basis || "",
+      period_review_status: item.period_review_status || "",
+      content_warning: item.content_warning || "",
       savedAt: Date.now(),
     });
     return safeList;
@@ -196,6 +199,8 @@
     resolveCanonicalFavorite: resolveCanonicalFavorite,
     isInteractiveShortcutTarget: isInteractiveShortcutTarget,
     pickExactQuote: pickExactQuote,
+    periodReviewStatusText: periodReviewStatusText,
+    reviewStatusText: reviewStatusText,
     toggleFavoriteList: toggleFavoriteList,
   };
 
@@ -210,7 +215,9 @@
     "settings-dialog", "library-dialog", "info-dialog", "dim-slider", "dock-toggle", "original-toggle",
     "fullscreen-button", "update-button", "library-search", "favorites-list", "library-count",
     "export-favorites", "import-favorites-button", "import-favorites", "clear-favorites", "night-dim", "toast", "detail-time",
-    "detail-expression", "detail-title", "detail-author", "detail-kind", "detail-review"
+    "detail-expression", "detail-title", "detail-author", "detail-kind", "detail-review", "detail-period",
+    "detail-warning", "detail-source-expression", "detail-source-title", "detail-source-author",
+    "detail-source-quote", "detail-source-link"
   ].forEach(function (id) {
     elements[id] = document.getElementById(id);
   });
@@ -339,17 +346,44 @@
       ? (item.kind === "원문" ? "한국어 공개저작 원문" : "외국 문학 한국어 번역")
       : "—";
     elements["detail-review"].textContent = item ? reviewStatusText(item) : "—";
+    elements["detail-period"].textContent = item ? periodReviewStatusText(item) : "—";
+    elements["detail-warning"].textContent = item && item.content_warning ? item.content_warning : "없음";
+    elements["detail-source-expression"].textContent = item && item.source_t ? item.source_t : "—";
+    elements["detail-source-title"].textContent = item && item.source_title ? item.source_title : "—";
+    elements["detail-source-author"].textContent = item && item.source_author ? item.source_author : "—";
+    elements["detail-source-quote"].textContent = item && item.source_q ? item.source_q : "—";
+    var sourceLink = elements["detail-source-link"];
+    if (item && item.source_url) {
+      sourceLink.href = item.source_url;
+      sourceLink.textContent = "원문 출전 열기";
+      sourceLink.hidden = false;
+    } else if (item && item.kind === "역" && item.source_q) {
+      sourceLink.href = "docs/SOURCE_AUDIT.md";
+      sourceLink.textContent = "canonical 출전 감사 보기";
+      sourceLink.hidden = false;
+    } else {
+      sourceLink.removeAttribute("href");
+      sourceLink.hidden = true;
+    }
   }
 
   function reviewStatusText(item) {
     if (item.kind === "원문") return "캐시 원문과 부분 문자열 대조";
-    if (item.review_status === "source_row_alias_candidate") return "개별 원문 행 연결 후보 · 작품 검토 필요";
-    if (item.review_status === "needs_source_row_mapping") return "개별 원문 행 연결 필요";
-    if (item.review_status === "needs_primary_source") return "1차 출전 확인 필요";
     if (item.review_status === "machine_checked") return "별도 원문 대조";
     if (item.review_status === "source_row_alias_matched") return "제목·작가 복합 별칭으로 원문 행 연결";
+    if (item.review_status === "source_row_reviewed") return "개별 원문 행 검토 완료";
+    if (item.review_status === "primary_source_verified") return "1차 출전 원문 확인";
     if (item.review_status === "source_row_matched") return "같은 분의 원문 행 연결";
     return "검토 상태 미기록";
+  }
+
+  function periodReviewStatusText(item) {
+    if (item.kind === "원문") return "한국어 원문 문맥으로 24시간대 확정";
+    if (item.period_review_status === "period_explicit") return "원문에 오전·오후 또는 24시간 표기 명시";
+    if (item.period_review_status === "period_contextual") return "같은 대목의 문맥으로 시간대 확인";
+    if (item.period_review_status === "period_ambiguous") return "원문만으로 오전·오후 미확정";
+    if (item.period_review_status === "period_unreviewed") return "시간대 근거 검토 미완료";
+    return "시간대 상태 미기록";
   }
 
   function renderQuote(item) {
@@ -372,14 +406,14 @@
     state.currentQuote = withTime;
     elements.quote.innerHTML = renderQuoteHtml(item.q, item.t);
     elements.source.textContent = sourceText(item);
-    var badges = badge("정밀 일치", "badge-exact");
+    var badges = badge("분 단위 일치", "badge-exact");
     badges += badge(item.kind === "원문" ? "원문" : "번역", "");
     if (item.sfw === "nsfw" || item.content_warning) badges += badge("민감한 내용", "");
     else if (item.kind === "역" && item.sfw !== "sfw") badges += badge("내용 분류 미확인", "");
-    if (item.review_status === "source_row_alias_candidate") {
-      badges += badge("출전 후보", "badge-candidate");
-    } else if (item.review_status && item.review_status.startsWith("needs_")) {
-      badges += badge("출전 확인 필요", "badge-warning");
+    if (item.review_status === "source_row_reviewed") badges += badge("출전 검토 완료", "");
+    if (item.review_status === "primary_source_verified") badges += badge("1차 출전 확인", "");
+    if (item.period_review_status === "period_ambiguous") {
+      badges += badge("오전·오후 미확정", "badge-warning");
     }
     elements["quote-badges"].innerHTML = badges;
     elements["quote-error"].hidden = true;

@@ -241,9 +241,25 @@ const ENTRY_FIELD_ORDER = [
   "source_url",
   "source_ref",
   "source_match_basis",
+  "source_review_basis",
+  "period_review_status",
+  "content_warning",
   "sfw",
   "review_status",
 ];
+
+const PERIOD_REVIEW_STATUSES = new Set([
+  "period_explicit",
+  "period_contextual",
+  "period_ambiguous",
+  "period_unreviewed",
+]);
+const CANONICAL_REVIEW_BASES = new Set([
+  "alias_translation_review",
+  "title_author_body_review",
+  "translated_title_body_review",
+  "same_work_body_disambiguation",
+]);
 
 function readJson(filePath) {
   try {
@@ -331,6 +347,42 @@ function confidentlyMatchedSource(sourceCorpus, key, entry) {
   // With one source row at this minute, its title/author pair is unambiguous.
   if (rows.length === 1) return rows[0];
   return null;
+}
+
+function reviewedCanonicalSource(sourceCorpus, key, entry) {
+  const matches = (sourceCorpus[key] || []).filter(
+    (row) =>
+      row.t === entry.source_t &&
+      row.q === entry.source_q &&
+      row.title === entry.source_title &&
+      row.author === entry.source_author,
+  );
+  if (matches.length !== 1) {
+    throw new Error(
+      `${key}: reviewed source tuple must match exactly one canonical row; matched ${matches.length}`,
+    );
+  }
+  if (!CANONICAL_REVIEW_BASES.has(entry.source_review_basis)) {
+    throw new Error(`${key}: reviewed canonical source row requires a recognized source_review_basis`);
+  }
+  return matches[0];
+}
+
+function assertReviewedPrimarySource(key, entry) {
+  for (const field of ["source_t", "source_q", "source_title", "source_author", "source_url"]) {
+    if (typeof entry[field] !== "string" || !entry[field].trim()) {
+      throw new Error(`${key}: verified primary source requires '${field}'`);
+    }
+  }
+  if (!entry.source_url.startsWith("https://")) {
+    throw new Error(`${key}: verified primary source URL must use HTTPS`);
+  }
+  if (entry.source_ref !== undefined) {
+    throw new Error(`${key}: verified primary sources must not retain legacy source_ref`);
+  }
+  if (entry.source_review_basis !== "primary_source_excerpt_review") {
+    throw new Error(`${key}: verified primary source requires its review basis`);
+  }
 }
 
 function addUniqueAlias(map, key, value) {
@@ -446,6 +498,11 @@ function orderedEntry(entry) {
   return ordered;
 }
 
+function hasExactCounts(actual, expected) {
+  const keys = new Set([...Object.keys(actual), ...Object.keys(expected)]);
+  return [...keys].every((key) => actual[key] === expected[key]);
+}
+
 function assertValidEntry(key, entry) {
   if (!entry || Array.isArray(entry) || typeof entry !== "object") {
     throw new Error(`${key}: translation must be one object`);
@@ -462,6 +519,9 @@ function assertValidEntry(key, entry) {
     throw new Error(`${key}: ampm must be '${expectedAmpm(key)}', got '${entry.ampm}'`);
   }
   if (entry.kind !== "역") throw new Error(`${key}: kind must be '역'`);
+  if (!PERIOD_REVIEW_STATUSES.has(entry.period_review_status)) {
+    throw new Error(`${key}: missing or invalid period_review_status`);
+  }
 }
 
 function curate(translations, sourceCorpus) {
@@ -476,6 +536,10 @@ function curate(translations, sourceCorpus) {
     aliasMatched: 0,
     aliasCandidates: 0,
     aliasBasisCounts: {},
+    sourceRowsReviewed: 0,
+    primarySourcesVerified: 0,
+    periodReviewCounts: {},
+    reviewStatusCounts: {},
     unresolved: 0,
   };
 
@@ -490,6 +554,8 @@ function curate(translations, sourceCorpus) {
         ampm: expectedAmpm(key),
         kind: "역",
         match: "exact",
+        period_review_status:
+          translations[key][0].period_review_status || "period_unreviewed",
         review_status: "machine_checked",
       };
       stats.replacements += 1;
@@ -508,6 +574,8 @@ function curate(translations, sourceCorpus) {
         source_title: source.title,
         source_author: source.author,
         sfw: source.sfw,
+        period_review_status:
+          translations[key][0].period_review_status || "period_unreviewed",
         review_status: "machine_checked",
       };
       stats.replacements += 1;
@@ -519,7 +587,14 @@ function curate(translations, sourceCorpus) {
       entry.match = "exact";
       stats.defaultExact += 1;
 
-      const directSource = confidentlyMatchedSource(sourceCorpus, key, entry);
+      const primarySourceVerified = entry.review_status === "primary_source_verified";
+      const canonicalSourceReviewed = entry.review_status === "source_row_reviewed";
+      if (primarySourceVerified) assertReviewedPrimarySource(key, entry);
+      const directSource = primarySourceVerified
+        ? null
+        : canonicalSourceReviewed
+          ? reviewedCanonicalSource(sourceCorpus, key, entry)
+          : confidentlyMatchedSource(sourceCorpus, key, entry);
       const existingAliasStatus =
         entry.review_status === "source_row_alias_matched" ||
         entry.review_status === "source_row_alias_candidate";
@@ -555,6 +630,8 @@ function curate(translations, sourceCorpus) {
         } else if (!entry.review_status || entry.review_status.startsWith("needs_")) {
           entry.review_status = "source_row_matched";
         }
+      } else if (primarySourceVerified) {
+        delete entry.source_ref;
       } else if (SUPPLEMENTAL_KEYS.has(key)) {
         entry.source_ref ??= `${UPSTREAM_SNAPSHOT} (supplemental literary-clock migration)`;
         entry.review_status ??= "needs_primary_source";
@@ -573,6 +650,8 @@ function curate(translations, sourceCorpus) {
     if (entry.review_status === "source_row_alias_candidate") {
       stats.aliasCandidates += 1;
     }
+    if (entry.review_status === "source_row_reviewed") stats.sourceRowsReviewed += 1;
+    if (entry.review_status === "primary_source_verified") stats.primarySourcesVerified += 1;
     if (
       entry.review_status === "source_row_alias_matched" ||
       entry.review_status === "source_row_alias_candidate"
@@ -581,6 +660,10 @@ function curate(translations, sourceCorpus) {
         (stats.aliasBasisCounts[entry.source_match_basis] || 0) + 1;
     }
     if (entry.review_status.startsWith("needs_")) stats.unresolved += 1;
+    stats.reviewStatusCounts[entry.review_status] =
+      (stats.reviewStatusCounts[entry.review_status] || 0) + 1;
+    stats.periodReviewCounts[entry.period_review_status] =
+      (stats.periodReviewCounts[entry.period_review_status] || 0) + 1;
     output[key] = [orderedEntry(entry)];
   }
 
@@ -589,13 +672,26 @@ function curate(translations, sourceCorpus) {
     stats.approximate !== 0 ||
     stats.defaultExact !== 1423 ||
     stats.aliasMatched !== 118 ||
-    stats.aliasCandidates !== 338 ||
-    stats.unresolved !== 289 ||
+    stats.aliasCandidates !== 0 ||
+    stats.sourceRowsReviewed !== 619 ||
+    stats.primarySourcesVerified !== 8 ||
+    stats.unresolved !== 0 ||
     stats.aliasBasisCounts.translated_pair !== 115 ||
-    stats.aliasBasisCounts.translated_author !== 337 ||
     stats.aliasBasisCounts.translated_title_author !== 3 ||
-    stats.aliasBasisCounts.translated_title !== 1 ||
-    Object.keys(stats.aliasBasisCounts).length !== 4
+    Object.keys(stats.aliasBasisCounts).length !== 2 ||
+    !hasExactCounts(stats.reviewStatusCounts, {
+        source_row_reviewed: 619,
+        source_row_matched: 678,
+        source_row_alias_matched: 118,
+        machine_checked: 17,
+        primary_source_verified: 8,
+      }) ||
+    !hasExactCounts(stats.periodReviewCounts, {
+        period_unreviewed: 1101,
+        period_explicit: 128,
+        period_ambiguous: 204,
+        period_contextual: 7,
+      })
   ) {
     throw new Error(`Unexpected curation counts: ${JSON.stringify(stats)}`);
   }
@@ -621,12 +717,19 @@ function main() {
     `${action} 1440 translations: ${stats.replacements} replaced, ` +
       `${stats.approximate} awaiting exact sources, ${stats.defaultExact} default exact, ` +
       `${stats.aliasMatched} alias-matched source rows, ${stats.aliasCandidates} alias candidates, ` +
-      `${stats.unresolved} unresolved sources, ` +
+      `${stats.sourceRowsReviewed} reviewed canonical rows, ` +
+      `${stats.primarySourcesVerified} verified primary sources, ${stats.unresolved} unresolved sources, ` +
       `${stats.sfwPreserved} inherited sfw labels.\n`,
   );
 }
 
-export { addUniqueAlias, aliasedSource, trustedSourceAliases };
+export {
+  addUniqueAlias,
+  aliasedSource,
+  assertReviewedPrimarySource,
+  reviewedCanonicalSource,
+  trustedSourceAliases,
+};
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {

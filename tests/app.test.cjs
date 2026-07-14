@@ -63,6 +63,7 @@ test("exact quote selection never falls back to another minute or wrong period",
     author: "Writer",
     ampm: "am",
     kind: "역",
+    period_review_status: "period_ambiguous",
   };
   const wrongPeriod = { ...translated, title: "오후 작품", ampm: "pm" };
   const ambiguousPeriod = { ...translated, title: "모호한 작품", ampm: "unknown" };
@@ -156,8 +157,10 @@ test("favorites toggle immutably and keep the fields needed for restoration", ()
     author: "작가",
     kind: "역",
     ampm: "pm",
-    review_status: "source_row_alias_candidate",
-    source_match_basis: "translated_author",
+    review_status: "source_row_reviewed",
+    source_review_basis: "alias_translation_review",
+    period_review_status: "period_ambiguous",
+    content_warning: "납치 상황",
   };
   const initial = [];
   const added = core.toggleFavoriteList(initial, item);
@@ -167,8 +170,29 @@ test("favorites toggle immutably and keep the fields needed for restoration", ()
   assert.equal(added[0].time, "12:34");
   assert.equal(added[0].q, item.q);
   assert.equal(added[0].review_status, item.review_status);
-  assert.equal(added[0].source_match_basis, item.source_match_basis);
+  assert.equal(added[0].source_review_basis, item.source_review_basis);
+  assert.equal(added[0].period_review_status, item.period_review_status);
+  assert.equal(added[0].content_warning, item.content_warning);
   assert.equal(typeof added[0].savedAt, "number");
   assert.deepEqual(core.toggleFavoriteList(added, item), []);
   assert.equal(added.length, 1);
+});
+
+test("source and period review labels distinguish provenance from AM/PM certainty", () => {
+  assert.equal(
+    core.reviewStatusText({ kind: "역", review_status: "source_row_reviewed" }),
+    "개별 원문 행 검토 완료",
+  );
+  assert.equal(
+    core.reviewStatusText({ kind: "역", review_status: "primary_source_verified" }),
+    "1차 출전 원문 확인",
+  );
+  assert.equal(
+    core.periodReviewStatusText({ kind: "역", period_review_status: "period_ambiguous" }),
+    "원문만으로 오전·오후 미확정",
+  );
+  assert.equal(
+    core.periodReviewStatusText({ kind: "역", period_review_status: "period_unreviewed" }),
+    "시간대 근거 검토 미완료",
+  );
 });

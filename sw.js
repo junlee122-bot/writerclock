@@ -2,7 +2,7 @@
 "use strict";
 
 var CACHE_PREFIX = "writerclock-";
-var CACHE_NAME = CACHE_PREFIX + "v1.0.1";
+var CACHE_NAME = CACHE_PREFIX + "v1.0.2";
 var PRECACHE_URLS = [
   "./",
   "./index.html",
@@ -10,6 +10,7 @@ var PRECACHE_URLS = [
   "assets/app.js",
   "assets/og-image.png",
   "data/ko_quotes.js",
+  "docs/SOURCE_AUDIT.md",
   "DATA_LICENSE.md",
   "NOTICE.md",
   "data/LITERATURE_CLOCK_LICENSE.md",

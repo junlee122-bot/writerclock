@@ -458,9 +458,9 @@ def build(refresh: bool = False) -> tuple[dict, dict]:
 
     obj = {
         "meta": {
-            "schema_version": 2,
+            "schema_version": 3,
             "minute_keys": 1440,
-            "precise_policy": "Entries belong only to their exact HH:MM key; ambiguous AM/PM and approximate items are excluded.",
+            "precise_policy": "Entries remain on their curated 24-hour HH:MM key; period_review_status records whether AM/PM evidence is explicit, contextual, ambiguous, or not yet reviewed.",
             "compilation_license": "CC BY-NC-SA 2.5",
             "compilation_license_file": "data/LITERATURE_CLOCK_LICENSE.md",
             "translation_input": "data/ko_translations.json",
@@ -476,28 +476,50 @@ def build(refresh: bool = False) -> tuple[dict, dict]:
     translated = [entry for entry in all_precise if entry.get("kind") == "역"]
     translation_review_counts: dict[str, int] = {}
     translation_source_match_basis_counts: dict[str, int] = {}
+    translation_source_review_basis_counts: dict[str, int] = {}
+    translation_period_review_counts: dict[str, int] = {}
     for entry in translated:
         status = entry.get("review_status", "missing")
         translation_review_counts[status] = translation_review_counts.get(status, 0) + 1
         basis = entry.get("source_match_basis")
         if basis:
             translation_source_match_basis_counts[basis] = translation_source_match_basis_counts.get(basis, 0) + 1
+        review_basis = entry.get("source_review_basis")
+        if review_basis:
+            translation_source_review_basis_counts[review_basis] = translation_source_review_basis_counts.get(review_basis, 0) + 1
+        period_status = entry.get("period_review_status", "missing")
+        translation_period_review_counts[period_status] = translation_period_review_counts.get(period_status, 0) + 1
     approximate_keys = sorted({
         time for time, entries in precise.items()
         if not any(entry.get("match", "exact") == "exact" for entry in entries)
     })
     coverage = {
-        "schema_version": 2,
+        "schema_version": 3,
         "compilation_license": "CC BY-NC-SA 2.5",
         "compilation_license_file": "data/LITERATURE_CLOCK_LICENSE.md",
         "sources": sources,
         "minute_keys": len(precise),
         "precise_entries": len(all_precise),
         "translated_entries": len(translated),
-        "translated_source_row_entries": sum(bool(entry.get("source_q")) for entry in translated),
+        "translated_source_excerpt_entries": sum(bool(entry.get("source_q")) for entry in translated),
+        "translated_canonical_source_row_entries": sum(
+            entry.get("review_status") != "primary_source_verified"
+            and not (entry.get("review_status") == "machine_checked" and entry.get("source_url"))
+            for entry in translated
+        ),
+        "translated_external_source_entries": sum(
+            entry.get("review_status") == "primary_source_verified"
+            or (entry.get("review_status") == "machine_checked" and bool(entry.get("source_url")))
+            for entry in translated
+        ),
+        "translated_primary_source_entries": sum(
+            entry.get("review_status") == "primary_source_verified" for entry in translated
+        ),
         "translated_source_ref_entries": sum(bool(entry.get("source_ref")) for entry in translated),
         "translation_review_counts": dict(sorted(translation_review_counts.items())),
         "translation_source_match_basis_counts": dict(sorted(translation_source_match_basis_counts.items())),
+        "translation_source_review_basis_counts": dict(sorted(translation_source_review_basis_counts.items())),
+        "translation_period_review_counts": dict(sorted(translation_period_review_counts.items())),
         "original_precise_entries": sum(entry.get("kind") == "원문" for entry in all_precise),
         "original_bucket_entries": len(all_buckets),
         "substring_verified_original_entries": verified_originals,

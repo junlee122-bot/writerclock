@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "compilation_license": "CC BY-NC-SA 2.5",
   "compilation_license_file": "data/LITERATURE_CLOCK_LICENSE.md",
   "sources": [
@@ -214,21 +214,34 @@
   "minute_keys": 1440,
   "precise_entries": 1447,
   "translated_entries": 1440,
-  "translated_source_row_entries": 1151,
-  "translated_source_ref_entries": 289,
+  "translated_source_excerpt_entries": 1440,
+  "translated_canonical_source_row_entries": 1428,
+  "translated_external_source_entries": 12,
+  "translated_primary_source_entries": 8,
+  "translated_source_ref_entries": 0,
   "translation_review_counts": {
     "machine_checked": 17,
-    "needs_primary_source": 8,
-    "needs_source_row_mapping": 281,
-    "source_row_alias_candidate": 338,
+    "primary_source_verified": 8,
     "source_row_alias_matched": 118,
-    "source_row_matched": 678
+    "source_row_matched": 678,
+    "source_row_reviewed": 619
   },
   "translation_source_match_basis_counts": {
-    "translated_author": 337,
     "translated_pair": 115,
-    "translated_title": 1,
     "translated_title_author": 3
+  },
+  "translation_source_review_basis_counts": {
+    "alias_translation_review": 338,
+    "primary_source_excerpt_review": 8,
+    "same_work_body_disambiguation": 11,
+    "title_author_body_review": 236,
+    "translated_title_body_review": 34
+  },
+  "translation_period_review_counts": {
+    "period_ambiguous": 204,
+    "period_contextual": 7,
+    "period_explicit": 128,
+    "period_unreviewed": 1101
   },
   "original_precise_entries": 7,
   "original_bucket_entries": 534,

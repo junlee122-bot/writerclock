@@ -15,6 +15,7 @@ const files = [
   "NOTICE.md",
   "DATA_LICENSE.md",
   "assets",
+  "docs",
 ];
 
 await rm(out, { recursive: true, force: true });

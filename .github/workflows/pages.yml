@@ -51,10 +51,11 @@ jobs:
       - name: Prepare minimal static site
         shell: bash
         run: |
-          mkdir -p dist/data dist/firmware
+          mkdir -p dist/data dist/firmware dist/docs
           cp index.html 404.html manifest.webmanifest sw.js robots.txt sitemap.xml dist/
           cp -R assets dist/assets
           cp data/ko_quotes.js data/ko_coverage.json data/LITERATURE_CLOCK_LICENSE.md dist/data/
+          cp docs/SOURCE_AUDIT.md dist/docs/
           cp firmware/OFL.txt dist/firmware/
           for file in LICENSE NOTICE.md DATA_LICENSE.md; do
             if [[ -f "$file" ]]; then cp "$file" dist/; fi

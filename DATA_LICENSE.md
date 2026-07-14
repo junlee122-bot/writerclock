@@ -50,15 +50,19 @@ CC BY-NC-SA 2.5는 데이터의 선택·배열 등 편집물에 관해 라이선
 `kind=역` 항목은 외국 문학의 짧은 시간 표현과 문장을 한국어로 옮긴
 파생 텍스트입니다. 현대 작품과 번역문은 퍼블릭 도메인이 아닐 수 있으며,
 이 저장소의 MIT License가 적용되지 않습니다. `source_q`, `source_t`,
-`source_title`, `source_author`, `source_url`, `sfw`, `review_status` 필드는
+`source_title`, `source_author`, `source_url`, `sfw`, `review_status`,
+`period_review_status` 필드는
 출전 및 검토 상태를 보조하지만 이용 허락을 대신하지 않습니다.
 
-이 릴리스의 번역 1,440개 중 1,151개는 개별 영어 원문 행 또는 별도 확인
-원문과 연결되어 있습니다. 그중 단일 저자·제목 별칭으로 연결된 338개는
-`source_row_alias_candidate` 후보이며 추가 작품 단위 검토가 필요합니다.
-나머지 289개는 상류 스냅숏 참조만 보존되어 있으며
-`needs_source_row_mapping` 또는 `needs_primary_source`로 표시됩니다.
-정확한 최신 집계는 `data/ko_coverage.json`에서 확인할 수 있습니다.
+이 릴리스의 번역 1,440개는 모두 원문 발췌와 연결되어 있습니다. 1,428개는
+캐시된 canonical literature-clock의 정확한 개별 행과 일치하고, 별도 교체한
+12개는 출전 URL을 보존하며 그중 8개는 1차 출전까지 확인했습니다. 종전 후보
+338개와 미매핑 281개는
+작품명·저자·본문을 대조해 619개 `source_row_reviewed` 항목으로 확정했습니다.
+이 검토는 원문 행 매핑을 확인한 것이며 개별 책 문장의 이용 허락이나 모든
+오전·오후 해석을 승인한 것은 아닙니다. 시간대 근거가 모호하거나 아직 별도
+검토되지 않은 항목은 `period_review_status`로 구분합니다. 정확한 최신 집계와
+방법은 `data/ko_coverage.json` 및 `docs/SOURCE_AUDIT.md`에서 확인할 수 있습니다.
 안전성 분류가 끝나지 않은 항목은 `sfw=unknown`이며 앱에도 이를 표시합니다.
 
 공개 웹 배포 또는 상업적 배포를 하려는 운영자는 다음 중 하나를 해야 합니다.

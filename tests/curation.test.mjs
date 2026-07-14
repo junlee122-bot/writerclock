@@ -1,11 +1,15 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
   addUniqueAlias,
   aliasedSource,
+  assertReviewedPrimarySource,
+  reviewedCanonicalSource,
   trustedSourceAliases,
 } from "../scripts/curate_translation_corpus.mjs";
+import { extractTranslatedCorpus } from "../scripts/split_translation_corpus.mjs";
 
 function emptyAliases() {
   return { pair: new Map(), title: new Map(), author: new Map() };
@@ -128,4 +132,60 @@ test("independent title and author aliases must identify the same unique row", (
 
   assert.equal(result?.basis, "translated_title_author");
   assert.deepEqual(result?.source, row());
+});
+
+test("reviewed canonical tuples require one complete exact source row", () => {
+  const source = row();
+  const reviewed = {
+    source_t: source.t,
+    source_q: source.q,
+    source_title: source.title,
+    source_author: source.author,
+    source_review_basis: "title_author_body_review",
+  };
+  assert.deepEqual(reviewedCanonicalSource({ "01:23": [source] }, "01:23", reviewed), source);
+  assert.throws(
+    () => reviewedCanonicalSource({ "01:23": [source] }, "01:23", { ...reviewed, source_q: "Changed" }),
+    /must match exactly one canonical row/,
+  );
+});
+
+test("verified primary sources require an HTTPS excerpt citation", () => {
+  const primary = {
+    source_t: "6:44 p.m.",
+    source_q: "6:44 p.m., Wednesday, October 30",
+    source_title: "Riley Thorn and the Blast from the Past",
+    source_author: "Lucy Score",
+    source_url: "https://www.lucyscore.net/sample/example",
+    source_review_basis: "primary_source_excerpt_review",
+  };
+  assert.doesNotThrow(() => assertReviewedPrimarySource("18:44", primary));
+  assert.throws(
+    () => assertReviewedPrimarySource("18:44", { ...primary, source_url: "" }),
+    /requires 'source_url'/,
+  );
+});
+
+test("translation split round trip preserves provenance and period review fields", () => {
+  const translated = {
+    ...row(),
+    kind: "역",
+    review_status: "source_row_reviewed",
+    source_review_basis: "same_work_body_disambiguation",
+    period_review_status: "period_ambiguous",
+    source_url: "https://example.com/source",
+    content_warning: "example",
+  };
+  const result = extractTranslatedCorpus({ precise: { "01:23": [{ kind: "원문" }, translated] } });
+  assert.deepEqual(result, { "01:23": [translated] });
+});
+
+test("18:44 uses an explicit PM primary excerpt and no longer duplicates The Deaths", async () => {
+  const corpus = JSON.parse(await readFile(new URL("../data/ko_translations.json", import.meta.url), "utf8"));
+  const entry = corpus["18:44"][0];
+  assert.equal(entry.review_status, "primary_source_verified");
+  assert.equal(entry.period_review_status, "period_explicit");
+  assert.match(entry.source_q, /6:44 p\.m\./);
+  assert.equal(entry.source_title, "Riley Thorn and the Blast from the Past");
+  assert.notEqual(entry.source_title, "The Deaths");
 });

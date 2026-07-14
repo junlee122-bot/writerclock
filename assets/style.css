@@ -678,6 +678,11 @@ legend,
   margin: 0;
 }
 
+.detail-source-quote {
+  color: var(--text);
+  white-space: pre-line;
+}
+
 .info-copy {
   color: var(--muted);
   font-size: 0.9rem;
