@@ -3,6 +3,7 @@
 .claude/state/
 notes/
 /dist/
+.vercel/
 __pycache__/
 *.py[cod]
 data/_trans/

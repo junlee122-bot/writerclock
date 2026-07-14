@@ -7,7 +7,8 @@
     "test": "node --test tests/app.test.cjs tests/curation.test.mjs",
     "audit:data": "node scripts/audit_data.mjs",
     "check:static": "node scripts/check_static.mjs",
-    "check": "npm test && npm run audit:data && npm run check:static"
+    "check": "npm test && npm run audit:data && npm run check:static",
+    "build:static": "node scripts/build_static_site.mjs"
   },
   "engines": {
     "node": ">=20"
