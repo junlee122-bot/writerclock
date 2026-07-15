@@ -15,7 +15,7 @@ assert.equal(config.webDir, "dist");
 
 const gradle = await read("android/app/build.gradle");
 assert.match(gradle, /applicationId\s+"io\.github\.junlee122\.writerclock"/);
-assert.match(gradle, /versionName\s+"1\.1\.0"/);
+assert.match(gradle, /versionName\s+"1\.2\.0"/);
 assert.match(gradle, /storeType\s+"PKCS12"/);
 
 const manifest = await read("android/app/src/main/AndroidManifest.xml");

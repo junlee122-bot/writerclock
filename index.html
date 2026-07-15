@@ -84,23 +84,25 @@
       <p id="quote-error" class="quote-error" role="alert" hidden></p>
     </article>
 
-    <nav class="time-navigation" aria-label="시간 탐색">
-      <button id="previous-minute" class="nav-button" type="button" aria-label="1분 전">−1</button>
-      <label class="time-picker-label" for="time-picker">
-        <span class="visually-hidden">볼 시각 선택</span>
-        <input id="time-picker" type="time" step="60" aria-label="볼 시각 선택" />
-      </label>
-      <button id="now-button" class="nav-button nav-button-primary" type="button">현재</button>
-      <button id="next-minute" class="nav-button" type="button" aria-label="1분 뒤">+1</button>
-    </nav>
+    <footer class="control-deck" aria-label="시계와 문장 조작">
+      <nav class="time-navigation" aria-label="시간 탐색">
+        <button id="previous-minute" class="nav-button" type="button" aria-label="1분 전">−1</button>
+        <label class="time-picker-label" for="time-picker">
+          <span class="visually-hidden">볼 시각 선택</span>
+          <input id="time-picker" type="time" step="60" aria-label="볼 시각 선택" />
+        </label>
+        <button id="now-button" class="nav-button nav-button-primary" type="button">현재</button>
+        <button id="next-minute" class="nav-button" type="button" aria-label="1분 뒤">+1</button>
+      </nav>
 
-    <div class="quote-actions" aria-label="현재 문장 작업">
-      <button id="shuffle-button" type="button">같은 시각의 다른 문장</button>
-      <button id="favorite-button" type="button" aria-pressed="false">♡ 저장</button>
-      <button id="share-button" type="button">공유</button>
-    </div>
+      <div class="quote-actions" aria-label="현재 문장 작업">
+        <button id="shuffle-button" type="button">다른 문장</button>
+        <button id="favorite-button" type="button" aria-pressed="false">♡ 저장</button>
+        <button id="share-button" type="button">공유</button>
+      </div>
 
-    <p class="keyboard-hint">← → 시각 이동 · Space 다른 문장 · N 현재 시각</p>
+      <p class="keyboard-hint">← → 시각 이동 · Space 다른 문장 · N 현재 시각</p>
+    </footer>
   </main>
 
   <dialog id="settings-dialog" class="panel-dialog" aria-labelledby="settings-title">

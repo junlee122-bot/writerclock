@@ -75,16 +75,16 @@ jobs:
           if [[ -n "$ANDROID_KEYSTORE_BASE64" && -n "$ANDROID_KEYSTORE_PASSWORD" ]]; then
             printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$ANDROID_KEYSTORE_PATH"
             ./gradlew assembleRelease --no-daemon
-            cp app/build/outputs/apk/release/app-release.apk ../WriterClock-Android-1.1.0.apk
+            cp app/build/outputs/apk/release/app-release.apk ../WriterClock-Android-1.2.0.apk
           else
             ./gradlew assembleDebug --no-daemon
-            cp app/build/outputs/apk/debug/app-debug.apk ../WriterClock-Android-1.1.0.apk
+            cp app/build/outputs/apk/debug/app-debug.apk ../WriterClock-Android-1.2.0.apk
           fi
 
       - name: Upload Android APK
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: writerclock-android-apk
-          path: WriterClock-Android-1.1.0.apk
+          path: WriterClock-Android-1.2.0.apk
           if-no-files-found: error
           retention-days: 30

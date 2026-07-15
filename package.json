@@ -1,6 +1,6 @@
 {
   "name": "writerclock",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "description": "A dependency-free literary clock with an exact-time, review-status-labeled quote for every minute.",
   "scripts": {
