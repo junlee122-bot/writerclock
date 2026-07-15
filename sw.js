@@ -2,7 +2,7 @@
 "use strict";
 
 var CACHE_PREFIX = "writerclock-";
-var CACHE_NAME = CACHE_PREFIX + "v1.1.0";
+var CACHE_NAME = CACHE_PREFIX + "v1.2.0";
 var PRECACHE_URLS = [
   "./",
   "./index.html",
@@ -87,6 +87,10 @@ self.addEventListener("fetch", function (event) {
   var url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return;
   if (event.request.mode === "navigate") {
+    event.respondWith(networkFirst(event));
+    return;
+  }
+  if (event.request.destination === "script" || event.request.destination === "style" || url.pathname.endsWith("manifest.webmanifest")) {
     event.respondWith(networkFirst(event));
     return;
   }

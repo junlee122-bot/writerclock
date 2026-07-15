@@ -333,6 +333,8 @@
   function updateSecondDisplay() {
     clearTimeout(state.secondTimer);
     var now = new Date();
+    var hour = now.getHours();
+    document.body.dataset.daypart = hour < 6 ? "night" : hour < 10 ? "dawn" : hour < 17 ? "day" : hour < 21 ? "evening" : "night";
     if (state.live) {
       elements["clock-seconds"].textContent = String(now.getSeconds()).padStart(2, "0");
       elements["minute-progress-bar"].style.width = (((now.getSeconds() * 1000 + now.getMilliseconds()) / 60000) * 100).toFixed(2) + "%";
