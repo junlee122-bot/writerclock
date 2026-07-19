@@ -209,7 +209,7 @@
 
   var elements = {};
   [
-    "clock", "clock-seconds", "period-label", "minute-progress-bar", "mode-label", "date-label", "stage", "quote", "source", "quote-badges", "quote-error",
+    "clock", "clock-seconds", "period-label", "minute-progress-bar", "mode-label", "minute-index", "date-label", "stage", "quote", "source", "quote-badges", "quote-error",
     "previous-minute", "next-minute", "now-button", "time-picker", "shuffle-button", "favorite-button",
     "share-button", "settings-button", "library-button", "info-button", "install-button", "dock-button", "connection-status",
     "settings-dialog", "library-dialog", "info-dialog", "dim-slider", "dock-toggle", "original-toggle",
@@ -320,12 +320,14 @@
 
   function updateTimeHeading() {
     var hour = Number(state.key.slice(0, 2));
+    var minuteIndex = minutesOf(state.key) + 1;
     elements.clock.textContent = formatKoreanTime(state.key).replace(/^(오전|오후)\s/, "");
     elements.clock.dateTime = state.key;
     elements["period-label"].textContent = hour < 12 ? "오전" : "오후";
     elements["mode-label"].textContent = state.live
       ? "현재 시각 · LIVE"
       : "시간 탐색";
+    elements["minute-index"].textContent = "MINUTE " + String(minuteIndex).padStart(4, "0") + " / 1440";
     elements["date-label"].textContent = state.live ? displayDate(new Date()) : "선택한 시각의 문장";
     elements["time-picker"].value = state.key;
   }
@@ -336,11 +338,14 @@
     var hour = now.getHours();
     document.body.dataset.daypart = hour < 6 ? "night" : hour < 10 ? "dawn" : hour < 17 ? "day" : hour < 21 ? "evening" : "night";
     if (state.live) {
+      var secondProgress = (now.getSeconds() * 1000 + now.getMilliseconds()) / 60000;
       elements["clock-seconds"].textContent = String(now.getSeconds()).padStart(2, "0");
-      elements["minute-progress-bar"].style.width = (((now.getSeconds() * 1000 + now.getMilliseconds()) / 60000) * 100).toFixed(2) + "%";
+      elements["minute-progress-bar"].style.width = (secondProgress * 100).toFixed(2) + "%";
+      document.body.style.setProperty("--second-angle", (secondProgress * 360).toFixed(2) + "deg");
     } else {
       elements["clock-seconds"].textContent = "00";
       elements["minute-progress-bar"].style.width = "0%";
+      document.body.style.setProperty("--second-angle", "0deg");
     }
     state.secondTimer = setTimeout(updateSecondDisplay, 1000 - now.getMilliseconds() + 12);
   }
