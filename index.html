@@ -64,7 +64,10 @@
 
   <main class="clock-shell">
     <section class="time-heading" aria-label="표시 중인 시각">
-      <p id="mode-label" class="eyebrow">현재 시각</p>
+      <div class="time-heading-topline">
+        <p id="mode-label" class="eyebrow">현재 시각</p>
+        <p id="minute-index" class="minute-index" aria-hidden="true">MINUTE ---- / 1440</p>
+      </div>
       <div class="clock-lockup">
         <span id="period-label" class="period-label" aria-hidden="true">오전</span>
         <time id="clock" class="clock" datetime="">--:--</time>

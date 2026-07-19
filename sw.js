@@ -2,7 +2,7 @@
 "use strict";
 
 var CACHE_PREFIX = "writerclock-";
-var CACHE_NAME = CACHE_PREFIX + "v1.2.0";
+var CACHE_NAME = CACHE_PREFIX + "v1.3.0";
 var PRECACHE_URLS = [
   "./",
   "./index.html",
