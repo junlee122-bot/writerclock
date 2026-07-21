@@ -2,12 +2,13 @@
 "use strict";
 
 var CACHE_PREFIX = "writerclock-";
-var CACHE_NAME = CACHE_PREFIX + "v1.3.0";
+var CACHE_NAME = CACHE_PREFIX + "v1.4.0";
 var PRECACHE_URLS = [
   "./",
   "./index.html",
   "assets/style.css",
   "assets/app.js",
+  "assets/fonts/NotoSerifKR-subset.woff2",
   "assets/og-image.png",
   "data/ko_quotes.js",
   "docs/SOURCE_AUDIT.md",
@@ -15,6 +16,7 @@ var PRECACHE_URLS = [
   "NOTICE.md",
   "data/LITERATURE_CLOCK_LICENSE.md",
   "firmware/OFL.txt",
+  "assets/fonts/OFL.txt",
   "manifest.webmanifest",
   "assets/icons/icon-192.png",
   "assets/icons/icon-512.png",

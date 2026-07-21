@@ -10,8 +10,8 @@
   "display": "standalone",
   "display_override": ["fullscreen", "standalone", "minimal-ui"],
   "orientation": "any",
-  "background_color": "#10110f",
-  "theme_color": "#10110f",
+  "background_color": "#131110",
+  "theme_color": "#131110",
   "categories": ["books", "lifestyle", "utilities"],
   "icons": [
     {
