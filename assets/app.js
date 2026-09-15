@@ -209,7 +209,8 @@
 
   var elements = {};
   [
-    "clock", "clock-seconds", "period-label", "minute-progress-bar", "mode-label", "minute-index", "date-label", "stage", "quote", "source", "quote-badges", "quote-error",
+    "clock", "clock-seconds", "period-label", "mode-label", "date-label", "stage", "quote", "source", "source-button", "quote-badges", "quote-error",
+    "time-explorer", "explorer-label",
     "previous-minute", "next-minute", "now-button", "time-picker", "shuffle-button", "favorite-button",
     "share-button", "settings-button", "library-button", "info-button", "install-button", "dock-button", "connection-status",
     "settings-dialog", "library-dialog", "info-dialog", "dim-slider", "dock-toggle", "original-toggle",
@@ -235,6 +236,7 @@
     wakeLock: null,
     installPrompt: null,
     waitingWorker: null,
+    keyboardNavigation: false,
   };
 
   function storageGet(key, fallback) {
@@ -299,6 +301,7 @@
     var count = preferredExactPool(getData(), state.key, preferOriginal()).length;
     var disabled = count < 2;
     elements["shuffle-button"].disabled = disabled;
+    elements["shuffle-button"].hidden = disabled;
     elements["shuffle-button"].title = count === 0
       ? "이 시각에는 표시할 문장이 없습니다."
       : disabled
@@ -320,14 +323,13 @@
 
   function updateTimeHeading() {
     var hour = Number(state.key.slice(0, 2));
-    var minuteIndex = minutesOf(state.key) + 1;
     elements.clock.textContent = formatKoreanTime(state.key).replace(/^(오전|오후)\s/, "");
     elements.clock.dateTime = state.key;
     elements["period-label"].textContent = hour < 12 ? "오전" : "오후";
     elements["mode-label"].textContent = state.live
-      ? "현재 시각 · LIVE"
+      ? "현재 시각"
       : "시간 탐색";
-    elements["minute-index"].textContent = "MINUTE " + String(minuteIndex).padStart(4, "0") + " / 1440";
+    elements["explorer-label"].textContent = state.live ? "시간 둘러보기" : formatKoreanTime(state.key);
     elements["date-label"].textContent = state.live ? displayDate(new Date()) : "선택한 시각의 문장";
     elements["time-picker"].value = state.key;
   }
@@ -338,14 +340,9 @@
     var hour = now.getHours();
     document.body.dataset.daypart = hour < 6 ? "night" : hour < 10 ? "dawn" : hour < 17 ? "day" : hour < 21 ? "evening" : "night";
     if (state.live) {
-      var secondProgress = (now.getSeconds() * 1000 + now.getMilliseconds()) / 60000;
       elements["clock-seconds"].textContent = String(now.getSeconds()).padStart(2, "0");
-      elements["minute-progress-bar"].style.width = (secondProgress * 100).toFixed(2) + "%";
-      document.body.style.setProperty("--second-angle", (secondProgress * 360).toFixed(2) + "deg");
     } else {
-      elements["clock-seconds"].textContent = "00";
-      elements["minute-progress-bar"].style.width = "0%";
-      document.body.style.setProperty("--second-angle", "0deg");
+      elements["clock-seconds"].textContent = "";
     }
     state.secondTimer = setTimeout(updateSecondDisplay, 1000 - now.getMilliseconds() + 12);
   }
@@ -417,6 +414,7 @@
       elements.stage.dataset.quoteLength = "short";
       elements.quote.textContent = "이 시각에 검증된 정밀 문장이 없습니다.";
       elements.source.textContent = "";
+      elements["source-button"].hidden = true;
       elements["quote-badges"].innerHTML = badge("데이터 누락", "");
       elements["quote-error"].hidden = false;
       elements["quote-error"].textContent = state.key + " 항목을 데이터 감사에서 보완해야 합니다.";
@@ -432,8 +430,8 @@
     elements.stage.dataset.quoteLength = quoteLength > 180 ? "long" : quoteLength > 110 ? "medium" : "short";
     elements.quote.innerHTML = renderQuoteHtml(item.q, item.t);
     elements.source.textContent = sourceText(item);
-    var badges = badge("분 단위 일치", "badge-exact");
-    badges += badge(item.kind === "원문" ? "원문" : "번역", "");
+    elements["source-button"].hidden = false;
+    var badges = badge(item.kind === "원문" ? "원문" : "번역", "");
     if (item.sfw === "nsfw" || item.content_warning) badges += badge("민감한 내용", "");
     else if (item.kind === "역" && item.sfw !== "sfw") badges += badge("내용 분류 미확인", "");
     if (item.review_status === "source_row_reviewed") badges += badge("출전 검토 완료", "");
@@ -515,7 +513,9 @@
     var active = !!state.currentQuote && favoriteContains(state.currentQuote);
     elements["favorite-button"].setAttribute("aria-pressed", active ? "true" : "false");
     elements["favorite-button"].textContent = active ? "♥ 저장됨" : "♡ 저장";
-    elements["library-button"].textContent = readFavorites().length ? "♥" : "♡";
+    var savedCount = readFavorites().length;
+    elements["library-button"].classList.toggle("has-saved", savedCount > 0);
+    elements["library-button"].setAttribute("aria-label", "저장한 문장 열기, " + savedCount + "개");
   }
 
   function toggleCurrentFavorite() {
@@ -725,7 +725,11 @@
     document.body.classList.add("controls-visible");
     clearTimeout(state.dockTimer);
     state.dockTimer = setTimeout(function () {
-      if (!document.querySelector("dialog[open]")) document.body.classList.remove("controls-visible");
+      var focusedControl = state.keyboardNavigation && document.activeElement &&
+        document.activeElement.closest(".app-header, .control-deck");
+      if (!document.querySelector("dialog[open]") && !elements["time-explorer"].open && !focusedControl) {
+        document.body.classList.remove("controls-visible");
+      }
     }, 5000);
   }
 
@@ -822,7 +826,24 @@
   function setupEvents() {
     elements["previous-minute"].addEventListener("click", function () { stepMinute(-1); });
     elements["next-minute"].addEventListener("click", function () { stepMinute(1); });
-    elements["now-button"].addEventListener("click", goLive);
+    elements["now-button"].addEventListener("click", function () {
+      goLive();
+      elements["time-explorer"].open = false;
+      elements["time-explorer"].querySelector("summary").focus();
+    });
+    elements["time-explorer"].addEventListener("toggle", resetDockControls);
+    elements["time-explorer"].addEventListener("keydown", function (event) {
+      if (event.key === "Escape" && this.open) {
+        this.open = false;
+        this.querySelector("summary").focus();
+        event.stopPropagation();
+      }
+    });
+    document.addEventListener("pointerdown", function (event) {
+      state.keyboardNavigation = false;
+      if (!elements["time-explorer"].contains(event.target)) elements["time-explorer"].open = false;
+    });
+    document.addEventListener("keydown", function () { state.keyboardNavigation = true; }, { capture: true });
     elements["time-picker"].addEventListener("change", function () {
       if (isValidHHMM(elements["time-picker"].value)) changeTime(elements["time-picker"].value, false, false);
     });
@@ -833,6 +854,7 @@
     elements["settings-button"].addEventListener("click", function () { showDialog(elements["settings-dialog"]); });
     elements["library-button"].addEventListener("click", function () { renderFavorites(); showDialog(elements["library-dialog"]); });
     elements["info-button"].addEventListener("click", function () { showDialog(elements["info-dialog"]); });
+    elements["source-button"].addEventListener("click", function () { showDialog(elements["info-dialog"]); });
     elements["library-search"].addEventListener("input", renderFavorites);
     elements["favorites-list"].addEventListener("click", function (event) {
       var deleteButton = event.target.closest(".favorite-delete");
@@ -887,8 +909,11 @@
     window.addEventListener("pageshow", function () {
       if (state.live) changeTime(formatHHMM(new Date()), true, false);
     });
-    ["pointermove", "pointerdown", "keydown", "touchstart"].forEach(function (name) {
+    ["pointermove", "pointerdown", "keydown", "touchstart", "focusin"].forEach(function (name) {
       document.addEventListener(name, resetDockControls, { passive: true });
+    });
+    document.addEventListener("focusout", function () {
+      if (document.body.classList.contains("controls-visible")) resetDockControls();
     });
     document.addEventListener("keydown", function (event) {
       if (isInteractiveShortcutTarget(event.target)) return;

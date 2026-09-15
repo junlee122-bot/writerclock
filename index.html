@@ -53,12 +53,16 @@
       <span>작가시계</span>
     </a>
     <div class="header-actions" aria-label="앱 메뉴">
-      <span id="connection-status" class="connection-status" role="status" hidden>오프라인</span>
-      <button id="install-button" class="quiet-button" type="button" hidden>설치</button>
       <button id="dock-button" class="dock-button" type="button" aria-pressed="false">거치 시계</button>
-      <button id="library-button" class="icon-button" type="button" aria-label="저장한 문장 열기" aria-haspopup="dialog">♡</button>
-      <button id="settings-button" class="icon-button" type="button" aria-label="설정 열기" aria-haspopup="dialog">Aa</button>
-      <button id="info-button" class="icon-button" type="button" aria-label="작가시계 정보 열기" aria-haspopup="dialog">i</button>
+      <button id="library-button" class="icon-button" type="button" aria-label="저장한 문장 열기" title="저장한 문장" aria-haspopup="dialog">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4.5A1.5 1.5 0 0 1 7.5 3h9A1.5 1.5 0 0 1 18 4.5V21l-6-4-6 4z" /></svg>
+      </button>
+      <button id="settings-button" class="icon-button" type="button" aria-label="설정 열기" title="보기와 거치 설정" aria-haspopup="dialog">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h9m4 0h3M4 17h3m4 0h9" /><circle cx="15" cy="7" r="2" /><circle cx="9" cy="17" r="2" /></svg>
+      </button>
+      <button id="info-button" class="icon-button" type="button" aria-label="작가시계 정보 열기" title="이 문장과 작가시계" aria-haspopup="dialog">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 11v6m0-10v.1" /></svg>
+      </button>
     </div>
   </header>
 
@@ -66,29 +70,32 @@
     <section class="time-heading" aria-label="표시 중인 시각">
       <div class="time-heading-topline">
         <p id="mode-label" class="eyebrow">현재 시각</p>
-        <p id="minute-index" class="minute-index" aria-hidden="true">MINUTE ---- / 1440</p>
       </div>
       <div class="clock-lockup">
         <span id="period-label" class="period-label" aria-hidden="true">오전</span>
         <time id="clock" class="clock" datetime="">--:--</time>
-        <span id="clock-seconds" class="clock-seconds" aria-label="초">--</span>
+        <span id="clock-seconds" class="clock-seconds" aria-hidden="true">--</span>
       </div>
       <p id="date-label" class="date-label"></p>
-      <div class="minute-progress" aria-hidden="true"><span id="minute-progress-bar"></span></div>
     </section>
 
     <article id="stage" class="quote-stage" aria-live="polite" aria-busy="true">
       <p class="quote-kicker"><span>이 시각의 문장</span></p>
       <blockquote id="quote" class="quote-text">문장을 불러오는 중입니다.</blockquote>
       <footer class="quote-meta">
-        <cite id="source"></cite>
+        <button id="source-button" class="source-button" type="button" aria-haspopup="dialog" title="이 문장의 출전 보기">
+          <cite id="source"></cite>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg>
+        </button>
         <span id="quote-badges" class="quote-badges" aria-label="문장 정보"></span>
       </footer>
       <p id="quote-error" class="quote-error" role="alert" hidden></p>
     </article>
 
     <footer class="control-deck" aria-label="시계와 문장 조작">
-      <nav class="time-navigation" aria-label="시간 탐색">
+      <details id="time-explorer" class="time-explorer">
+        <summary class="explorer-toggle"><span id="explorer-label">시간 둘러보기</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg></summary>
+        <nav class="time-navigation" aria-label="시간 탐색">
         <button id="previous-minute" class="nav-button" type="button" aria-label="1분 전">−1</button>
         <label class="time-picker-label" for="time-picker">
           <span class="visually-hidden">볼 시각 선택</span>
@@ -96,7 +103,8 @@
         </label>
         <button id="now-button" class="nav-button nav-button-primary" type="button">현재</button>
         <button id="next-minute" class="nav-button" type="button" aria-label="1분 뒤">+1</button>
-      </nav>
+        </nav>
+      </details>
 
       <div class="quote-actions" aria-label="현재 문장 작업">
         <button id="shuffle-button" type="button">다른 문장</button>
@@ -149,7 +157,9 @@
         <input id="original-toggle" type="checkbox" role="switch" checked />
       </label>
       <button id="fullscreen-button" class="wide-button" type="button">전체 화면</button>
+      <button id="install-button" class="wide-button" type="button" hidden>앱 설치</button>
       <button id="update-button" class="wide-button" type="button" hidden>새 버전으로 새로고침</button>
+      <p id="connection-status" class="connection-status" role="status" hidden>오프라인</p>
     </div>
   </dialog>
 
