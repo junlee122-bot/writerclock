@@ -14,8 +14,10 @@ assert.equal(config.appId, "io.github.junlee122.writerclock");
 assert.equal(config.webDir, "dist");
 
 const gradle = await read("android/app/build.gradle");
+const { version } = JSON.parse(await read("package.json"));
 assert.match(gradle, /applicationId\s+"io\.github\.junlee122\.writerclock"/);
-assert.match(gradle, /versionName\s+"1\.4\.0"/);
+assert.equal(gradle.match(/versionName\s+"([^"]+)"/)?.[1], version,
+  "Android versionName must match package.json");
 assert.match(gradle, /storeType\s+"PKCS12"/);
 
 const manifest = await read("android/app/src/main/AndroidManifest.xml");

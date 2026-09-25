@@ -9,9 +9,7 @@
   var DIM_KEY = STORAGE_PREFIX + "dim";
   var DOCK_KEY = STORAGE_PREFIX + "dock";
   var ORIGINAL_KEY = STORAGE_PREFIX + "preferOriginal";
-  var SHORTCUT_KEY = STORAGE_PREFIX + "letterShortcuts";
   var RECENT_LIMIT = 24;
-  var BROWSE_DOCK_RETURN_MS = 3 * 60 * 1000;
 
   function escapeHtml(value) {
     return String(value == null ? "" : value)
@@ -211,13 +209,13 @@
 
   var elements = {};
   [
-    "clock", "clock-seconds", "period-label", "minute-progress-bar", "mode-label", "return-live", "minute-index", "date-label", "stage", "quote", "source", "quote-badges", "quote-error", "quote-info-button",
-    "previous-minute", "next-minute", "now-button", "time-picker", "time-face", "shuffle-button", "favorite-button",
+    "clock", "clock-seconds", "period-label", "mode-label", "date-label", "stage", "quote", "source", "source-button", "quote-badges", "quote-error",
+    "time-explorer", "explorer-label",
+    "previous-minute", "next-minute", "now-button", "time-picker", "shuffle-button", "favorite-button",
     "share-button", "settings-button", "library-button", "info-button", "install-button", "dock-button", "connection-status",
-    "settings-dialog", "library-dialog", "info-dialog", "dim-slider", "dim-value", "dock-toggle", "original-toggle", "shortcut-toggle",
+    "settings-dialog", "library-dialog", "info-dialog", "dim-slider", "dock-toggle", "original-toggle",
     "fullscreen-button", "update-button", "library-search", "favorites-list", "library-count",
-    "export-favorites", "import-favorites-button", "import-favorites", "clear-favorites", "night-dim",
-    "toast", "toast-message", "toast-action", "detail-time",
+    "export-favorites", "import-favorites-button", "import-favorites", "clear-favorites", "night-dim", "toast", "detail-time",
     "detail-expression", "detail-title", "detail-author", "detail-kind", "detail-review", "detail-period",
     "detail-warning", "detail-source-expression", "detail-source-title", "detail-source-author",
     "detail-source-quote", "detail-source-link"
@@ -233,17 +231,12 @@
     minuteTimer: null,
     secondTimer: null,
     dockTimer: null,
-    browseReturnTimer: null,
     driftTimer: null,
     toastTimer: null,
-    toastAction: null,
-    swapTimer: null,
-    enterTimer: null,
-    urlTimer: null,
-    clearConfirmTimer: null,
     wakeLock: null,
     installPrompt: null,
     waitingWorker: null,
+    keyboardNavigation: false,
   };
 
   function storageGet(key, fallback) {
@@ -285,40 +278,14 @@
     return global.AUTHOR_CLOCK_QUOTES_KO || null;
   }
 
-  function prefersReducedMotion() {
-    return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
-  }
-
-  function hideToast() {
-    elements.toast.classList.remove("is-visible");
-    state.toastAction = null;
-    elements["toast-action"].hidden = true;
-  }
-
-  function toast(message, action) {
+  function toast(message) {
     if (!elements.toast) return;
-    // A modal dialog makes everything outside it inert, so the toast must
-    // live inside whichever dialog is open to stay readable and clickable.
-    var host = document.querySelector("dialog[open]") || document.body;
-    if (elements.toast.parentElement !== host) host.appendChild(elements.toast);
-    if (action && typeof action.run === "function") {
-      state.toastAction = action.run;
-      elements["toast-action"].textContent = action.label || "되돌리기";
-      elements["toast-action"].hidden = false;
-    } else {
-      state.toastAction = null;
-      elements["toast-action"].hidden = true;
-    }
-    // Show first, then set the text: role=status only announces mutations
-    // that happen while the region is visible in the accessibility tree.
-    requestAnimationFrame(function () {
-      elements.toast.classList.add("is-visible");
-      requestAnimationFrame(function () {
-        elements["toast-message"].textContent = message;
-      });
-    });
+    elements.toast.textContent = message;
+    elements.toast.hidden = false;
     clearTimeout(state.toastTimer);
-    state.toastTimer = setTimeout(hideToast, action ? 5200 : 2800);
+    state.toastTimer = setTimeout(function () {
+      elements.toast.hidden = true;
+    }, 2800);
   }
 
   function recentFor(key) {
@@ -330,15 +297,11 @@
     return storageGet(ORIGINAL_KEY, "true") !== "false";
   }
 
-  function letterShortcutsEnabled() {
-    return storageGet(SHORTCUT_KEY, "true") !== "false";
-  }
-
   function updateShuffleAvailability() {
     var count = preferredExactPool(getData(), state.key, preferOriginal()).length;
     var disabled = count < 2;
     elements["shuffle-button"].disabled = disabled;
-    elements["shuffle-button"].textContent = count > 1 ? "다른 문장 · " + count : "다른 문장";
+    elements["shuffle-button"].hidden = disabled;
     elements["shuffle-button"].title = count === 0
       ? "이 시각에는 표시할 문장이 없습니다."
       : disabled
@@ -358,35 +321,28 @@
     }
   }
 
-  function updateDaypart() {
-    var hour = Number(state.key.slice(0, 2));
-    document.body.dataset.daypart = hour < 6 ? "night" : hour < 10 ? "dawn" : hour < 17 ? "day" : hour < 21 ? "evening" : "night";
-  }
-
   function updateTimeHeading() {
     var hour = Number(state.key.slice(0, 2));
-    var minuteIndex = minutesOf(state.key) + 1;
-    document.body.dataset.mode = state.live ? "live" : "browse";
     elements.clock.textContent = formatKoreanTime(state.key).replace(/^(오전|오후)\s/, "");
     elements.clock.dateTime = state.key;
     elements["period-label"].textContent = hour < 12 ? "오전" : "오후";
-    elements["minute-index"].textContent = "하루의 " + minuteIndex + "번째 분";
-    elements["date-label"].textContent = state.live ? displayDate(new Date()) : "";
-    elements["now-button"].disabled = state.live;
-    if (document.activeElement !== elements["time-picker"]) {
-      elements["time-picker"].value = state.key;
-      elements["time-face"].textContent = formatKoreanTime(state.key);
-    }
-    updateDaypart();
+    elements["mode-label"].textContent = state.live
+      ? "현재 시각"
+      : "시간 탐색";
+    elements["explorer-label"].textContent = state.live ? "시간 둘러보기" : formatKoreanTime(state.key);
+    elements["date-label"].textContent = state.live ? displayDate(new Date()) : "선택한 시각의 문장";
+    elements["time-picker"].value = state.key;
   }
 
   function updateSecondDisplay() {
     clearTimeout(state.secondTimer);
     var now = new Date();
+    var hour = now.getHours();
+    document.body.dataset.daypart = hour < 6 ? "night" : hour < 10 ? "dawn" : hour < 17 ? "day" : hour < 21 ? "evening" : "night";
     if (state.live) {
-      var secondProgress = (now.getSeconds() * 1000 + now.getMilliseconds()) / 60000;
       elements["clock-seconds"].textContent = String(now.getSeconds()).padStart(2, "0");
-      elements["minute-progress-bar"].style.width = (secondProgress * 100).toFixed(2) + "%";
+    } else {
+      elements["clock-seconds"].textContent = "";
     }
     state.secondTimer = setTimeout(updateSecondDisplay, 1000 - now.getMilliseconds() + 12);
   }
@@ -458,7 +414,8 @@
       elements.stage.dataset.quoteLength = "short";
       elements.quote.textContent = "이 시각에 검증된 정밀 문장이 없습니다.";
       elements.source.textContent = "";
-      elements["quote-badges"].innerHTML = "";
+      elements["source-button"].hidden = true;
+      elements["quote-badges"].innerHTML = badge("데이터 누락", "");
       elements["quote-error"].hidden = false;
       elements["quote-error"].textContent = state.key + " 항목을 데이터 감사에서 보완해야 합니다.";
       elements["favorite-button"].disabled = true;
@@ -472,10 +429,16 @@
     var quoteLength = plainQuote(item.q).length;
     elements.stage.dataset.quoteLength = quoteLength > 180 ? "long" : quoteLength > 110 ? "medium" : "short";
     elements.quote.innerHTML = renderQuoteHtml(item.q, item.t);
-    elements.source.textContent = sourceText(item) + (item.kind === "역" ? " · 한국어 번역" : "");
-    var badges = "";
-    if (item.sfw === "nsfw" || item.content_warning) badges += badge("민감한 내용", "badge-warning");
-    if (item.period_review_status === "period_ambiguous") badges += badge("오전·오후 미확정", "badge-caution");
+    elements.source.textContent = sourceText(item);
+    elements["source-button"].hidden = false;
+    var badges = badge(item.kind === "원문" ? "원문" : "번역", "");
+    if (item.sfw === "nsfw" || item.content_warning) badges += badge("민감한 내용", "");
+    else if (item.kind === "역" && item.sfw !== "sfw") badges += badge("내용 분류 미확인", "");
+    if (item.review_status === "source_row_reviewed") badges += badge("출전 검토 완료", "");
+    if (item.review_status === "primary_source_verified") badges += badge("1차 출전 확인", "");
+    if (item.period_review_status === "period_ambiguous") {
+      badges += badge("오전·오후 미확정", "badge-warning");
+    }
     elements["quote-badges"].innerHTML = badges;
     elements["quote-error"].hidden = true;
     elements["favorite-button"].disabled = false;
@@ -494,64 +457,33 @@
     renderQuote(picked);
   }
 
-  function writeUrlNow() {
-    if (!history || !history.replaceState || location.protocol === "file:") return;
-    try {
-      var url = new URL(location.href);
-      if (state.live) url.searchParams.delete("time");
-      else url.searchParams.set("time", state.key);
-      history.replaceState(null, "", url.pathname + url.search + url.hash);
-    } catch (_error) {
-      // Some browsers rate-limit replaceState; the next write catches up.
-    }
-  }
-
   function updateUrl() {
-    // Debounced so hold-to-repeat stepping cannot trip replaceState limits.
-    clearTimeout(state.urlTimer);
-    state.urlTimer = setTimeout(writeUrlNow, 180);
+    if (!history || !history.replaceState || location.protocol === "file:") return;
+    var url = new URL(location.href);
+    if (state.live) url.searchParams.delete("time");
+    else url.searchParams.set("time", state.key);
+    history.replaceState(null, "", url.pathname + url.search + url.hash);
   }
 
-  function swapQuote(shuffle) {
-    clearTimeout(state.swapTimer);
-    clearTimeout(state.enterTimer);
-    if (prefersReducedMotion()) {
-      elements.stage.classList.remove("quote-leave", "quote-enter");
-      chooseQuote(!!shuffle);
-      return;
-    }
-    elements.stage.classList.remove("quote-enter");
-    elements.stage.classList.add("quote-leave");
-    state.swapTimer = setTimeout(function () {
-      chooseQuote(!!shuffle);
-      elements.stage.classList.remove("quote-leave");
-      elements.stage.classList.add("quote-enter");
-      state.enterTimer = setTimeout(function () {
-        elements.stage.classList.remove("quote-enter");
-      }, 400);
-    }, 210);
-  }
-
-  function changeTime(key, live, shuffle, options) {
+  function changeTime(key, live, shuffle) {
     if (!isValidHHMM(key)) return;
-    options = options || {};
     var changed = key !== state.key || live !== state.live;
     state.key = key;
     state.live = !!live;
     updateTimeHeading();
     updateUrl();
     updateShuffleAvailability();
-    scheduleBrowseReturn();
     if (changed || shuffle) {
-      // Automatic minute ticks stay silent for screen readers; only
-      // user-initiated changes announce the new quote.
-      elements.stage.setAttribute("aria-live", options.auto ? "off" : "polite");
-      swapQuote(shuffle);
+      elements.stage.classList.add("is-swapping");
+      setTimeout(function () {
+        chooseQuote(!!shuffle);
+        elements.stage.classList.remove("is-swapping");
+      }, window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 120);
     }
   }
 
-  function goLive(options) {
-    changeTime(formatHHMM(new Date()), true, false, options);
+  function goLive() {
+    changeTime(formatHHMM(new Date()), true, false);
     scheduleMinuteTick();
   }
 
@@ -565,22 +497,9 @@
     var now = new Date();
     var delay = (60 - now.getSeconds()) * 1000 - now.getMilliseconds() + 25;
     state.minuteTimer = setTimeout(function () {
-      if (state.live) changeTime(formatHHMM(new Date()), true, false, { auto: true });
+      if (state.live) changeTime(formatHHMM(new Date()), true, false);
       scheduleMinuteTick();
     }, delay);
-  }
-
-  /* A docked clock must never show a stale time forever: while browsing
-     in dock mode, fall back to the live minute after a few idle minutes. */
-  function scheduleBrowseReturn() {
-    clearTimeout(state.browseReturnTimer);
-    if (state.live || !document.body.classList.contains("dock-mode")) return;
-    state.browseReturnTimer = setTimeout(function () {
-      if (!state.live && document.body.classList.contains("dock-mode")) {
-        goLive({ auto: true });
-        toast("현재 시각으로 돌아왔습니다.");
-      }
-    }, BROWSE_DOCK_RETURN_MS);
   }
 
   function favoriteContains(item) {
@@ -592,14 +511,11 @@
 
   function updateFavoriteButton() {
     var active = !!state.currentQuote && favoriteContains(state.currentQuote);
-    var count = readFavorites().length;
     elements["favorite-button"].setAttribute("aria-pressed", active ? "true" : "false");
     elements["favorite-button"].textContent = active ? "♥ 저장됨" : "♡ 저장";
-    elements["library-button"].textContent = count ? "♥" : "♡";
-    elements["library-button"].setAttribute(
-      "aria-label",
-      count ? "저장한 문장 " + count + "개 열기" : "저장한 문장 열기",
-    );
+    var savedCount = readFavorites().length;
+    elements["library-button"].classList.toggle("has-saved", savedCount > 0);
+    elements["library-button"].setAttribute("aria-label", "저장한 문장 열기, " + savedCount + "개");
   }
 
   function toggleCurrentFavorite() {
@@ -609,12 +525,7 @@
     if (writeFavorites(next)) {
       updateFavoriteButton();
       renderFavorites();
-      if (!wasSaved) {
-        elements["favorite-button"].classList.remove("just-saved");
-        void elements["favorite-button"].offsetWidth;
-        elements["favorite-button"].classList.add("just-saved");
-      }
-      toast(wasSaved ? "서재에서 뺐습니다." : "이 문장을 서재에 담았습니다.");
+      toast(wasSaved ? "저장에서 뺐습니다." : "문장을 저장했습니다.");
     }
   }
 
@@ -631,19 +542,16 @@
     });
     if (!filtered.length) {
       elements["favorites-list"].innerHTML = '<p class="empty-state">' +
-        (query
-          ? "검색 결과가 없습니다."
-          : "아직 저장한 문장이 없습니다.<br>마음에 드는 문장 아래 ‘♡ 저장’을 누르면 이곳에 모입니다.") + "</p>";
+        (query ? "검색 결과가 없습니다." : "아직 저장한 문장이 없습니다.") + "</p>";
       return;
     }
     elements["favorites-list"].innerHTML = filtered.map(function (item) {
       var sig = quoteSignature(item);
       return '<article class="favorite-card" role="listitem">' +
         '<button class="favorite-open" type="button" data-signature="' + escapeHtml(sig) + '">' +
-        '<span class="favorite-quote">“' + escapeHtml(plainQuote(item.q)) + '”</span>' +
-        '<span class="favorite-source">' + escapeHtml(item.time + " · " + sourceText(item)) + "</span></button>" +
-        '<button class="favorite-delete" type="button" data-signature="' + escapeHtml(sig) +
-        '" aria-label="저장 삭제: ' + escapeHtml(item.time + " " + (item.title || "")) + '">×</button>' +
+        "<blockquote>“" + escapeHtml(plainQuote(item.q)) + "”</blockquote>" +
+        "<small>" + escapeHtml(item.time + " · " + sourceText(item)) + "</small></button>" +
+        '<button class="favorite-delete" type="button" data-signature="' + escapeHtml(sig) + '" aria-label="저장 삭제">×</button>' +
         "</article>";
     }).join("");
   }
@@ -655,25 +563,13 @@
   }
 
   function removeFavorite(signature) {
-    var removed = findFavorite(signature);
     var next = readFavorites().filter(function (item) {
       return quoteSignature(item) !== signature;
     });
     writeFavorites(next);
     renderFavorites();
     updateFavoriteButton();
-    toast("서재에서 뺐습니다.", removed && {
-      label: "되돌리기",
-      run: function () {
-        var restored = readFavorites();
-        restored.push(removed);
-        if (writeFavorites(restored)) {
-          renderFavorites();
-          updateFavoriteButton();
-          toast("서재에 다시 담았습니다.");
-        }
-      },
-    });
+    toast("저장에서 뺐습니다.");
   }
 
   function openFavorite(item) {
@@ -683,15 +579,10 @@
       return;
     }
     closeDialog(elements["library-dialog"]);
-    clearTimeout(state.swapTimer);
-    clearTimeout(state.enterTimer);
-    elements.stage.classList.remove("quote-leave", "quote-enter");
-    elements.stage.setAttribute("aria-live", "polite");
     state.key = canonical.time;
     state.live = false;
     updateTimeHeading();
     updateUrl();
-    scheduleBrowseReturn();
     renderQuote(canonical);
   }
 
@@ -772,18 +663,6 @@
     }
   }
 
-  function resolvedThemeBackground() {
-    var dark = document.documentElement.classList.contains("theme-dark") ||
-      (!document.documentElement.classList.contains("theme-light") &&
-        window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
-    return dark ? "#131110" : "#eae2d3";
-  }
-
-  function updateThemeColorMeta() {
-    var meta = document.querySelector('meta[name="theme-color"]:not([media])');
-    if (meta) meta.setAttribute("content", resolvedThemeBackground());
-  }
-
   function applyTheme(value) {
     var mode = ["auto", "light", "dark"].includes(value) ? value : "auto";
     document.documentElement.classList.remove("theme-light", "theme-dark");
@@ -791,7 +670,6 @@
     document.querySelectorAll("[data-theme]").forEach(function (button) {
       button.setAttribute("aria-pressed", button.dataset.theme === mode ? "true" : "false");
     });
-    updateThemeColorMeta();
   }
 
   function applyFont(value) {
@@ -814,7 +692,6 @@
     var manual = Number(storageGet(DIM_KEY, "0")) || 0;
     var auto = document.body.classList.contains("dock-mode") ? nightOpacity(new Date()) : 0;
     elements["night-dim"].style.opacity = String(Math.max(manual, auto));
-    elements["dim-value"].textContent = Math.round(manual * 100) + "%";
   }
 
   function requestWakeLock() {
@@ -841,19 +718,16 @@
     applyDim();
     resetDockControls();
     applyDrift();
-    scheduleBrowseReturn();
   }
 
   function resetDockControls() {
     if (!document.body.classList.contains("dock-mode")) return;
     document.body.classList.add("controls-visible");
-    scheduleBrowseReturn();
     clearTimeout(state.dockTimer);
     state.dockTimer = setTimeout(function () {
-      var focusInChrome = document.activeElement &&
-        typeof document.activeElement.closest === "function" &&
+      var focusedControl = state.keyboardNavigation && document.activeElement &&
         document.activeElement.closest(".app-header, .control-deck");
-      if (!document.querySelector("dialog[open]") && !focusInChrome) {
+      if (!document.querySelector("dialog[open]") && !elements["time-explorer"].open && !focusedControl) {
         document.body.classList.remove("controls-visible");
       }
     }, 5000);
@@ -861,7 +735,7 @@
 
   function applyDrift() {
     clearTimeout(state.driftTimer);
-    var enabled = document.body.classList.contains("dock-mode") && !prefersReducedMotion();
+    var enabled = document.body.classList.contains("dock-mode");
     if (!enabled) {
       document.body.style.removeProperty("--drift-x");
       document.body.style.removeProperty("--drift-y");
@@ -877,10 +751,6 @@
     var enabled = !document.body.classList.contains("dock-mode");
     storageSet(DOCK_KEY, enabled ? "true" : "false");
     applyDock(enabled);
-    if (enabled) {
-      if (!state.live) goLive();
-      toast("거치 모드 — 화면을 건드리면 메뉴가 나타나고, Esc 키로 종료합니다.");
-    }
     if (enabled && !document.fullscreenElement && document.documentElement.requestFullscreen) {
       document.documentElement.requestFullscreen().catch(function () {});
     } else if (!enabled && document.fullscreenElement && document.exitFullscreen) {
@@ -893,10 +763,6 @@
     resetDockControls();
     if (typeof dialog.showModal === "function") dialog.showModal();
     else dialog.setAttribute("open", "");
-    // A visible toast would otherwise dim behind the modal backdrop.
-    if (elements.toast.classList.contains("is-visible") && elements.toast.parentElement !== dialog) {
-      dialog.appendChild(elements.toast);
-    }
   }
 
   function closeDialog(dialog) {
@@ -957,77 +823,29 @@
     toast("새 버전이 준비됐습니다.");
   }
 
-  function setupStepRepeat(button, delta) {
-    var holdTimer = null;
-    var repeatTimer = null;
-    var repeated = false;
-
-    function stopRepeat() {
-      clearTimeout(holdTimer);
-      clearInterval(repeatTimer);
-      holdTimer = null;
-      repeatTimer = null;
-    }
-
-    button.addEventListener("pointerdown", function (event) {
-      if (event.button !== 0) return;
-      repeated = false;
-      stopRepeat();
-      holdTimer = setTimeout(function () {
-        repeated = true;
-        stepMinute(delta);
-        repeatTimer = setInterval(function () { stepMinute(delta); }, 120);
-      }, 400);
-    });
-    ["pointerup", "pointerleave", "pointercancel"].forEach(function (name) {
-      button.addEventListener(name, stopRepeat);
-    });
-    button.addEventListener("click", function () {
-      if (repeated) {
-        repeated = false;
-        return;
-      }
-      stepMinute(delta);
-    });
-  }
-
-  function confirmClearFavorites() {
-    var button = elements["clear-favorites"];
-    var count = readFavorites().length;
-    if (!count) return;
-    if (!button.classList.contains("confirming")) {
-      button.classList.add("confirming");
-      button.textContent = "한 번 더 누르면 " + count + "개를 지웁니다";
-      clearTimeout(state.clearConfirmTimer);
-      state.clearConfirmTimer = setTimeout(function () {
-        button.classList.remove("confirming");
-        button.textContent = "모두 지우기";
-      }, 4000);
-      return;
-    }
-    clearTimeout(state.clearConfirmTimer);
-    button.classList.remove("confirming");
-    button.textContent = "모두 지우기";
-    writeFavorites([]);
-    renderFavorites();
-    updateFavoriteButton();
-    toast("저장한 문장을 모두 지웠습니다.");
-  }
-
   function setupEvents() {
-    setupStepRepeat(elements["previous-minute"], -1);
-    setupStepRepeat(elements["next-minute"], 1);
-    elements["now-button"].addEventListener("click", function () { goLive(); });
-    elements["return-live"].addEventListener("click", function () { goLive(); });
+    elements["previous-minute"].addEventListener("click", function () { stepMinute(-1); });
+    elements["next-minute"].addEventListener("click", function () { stepMinute(1); });
+    elements["now-button"].addEventListener("click", function () {
+      goLive();
+      elements["time-explorer"].open = false;
+      elements["time-explorer"].querySelector("summary").focus();
+    });
+    elements["time-explorer"].addEventListener("toggle", resetDockControls);
+    elements["time-explorer"].addEventListener("keydown", function (event) {
+      if (event.key === "Escape" && this.open) {
+        this.open = false;
+        this.querySelector("summary").focus();
+        event.stopPropagation();
+      }
+    });
+    document.addEventListener("pointerdown", function (event) {
+      state.keyboardNavigation = false;
+      if (!elements["time-explorer"].contains(event.target)) elements["time-explorer"].open = false;
+    });
+    document.addEventListener("keydown", function () { state.keyboardNavigation = true; }, { capture: true });
     elements["time-picker"].addEventListener("change", function () {
       if (isValidHHMM(elements["time-picker"].value)) changeTime(elements["time-picker"].value, false, false);
-    });
-    elements["time-picker"].addEventListener("input", function () {
-      if (isValidHHMM(this.value)) elements["time-face"].textContent = formatKoreanTime(this.value);
-    });
-    elements["time-picker"].addEventListener("blur", function () {
-      elements["time-picker"].value = state.key;
-      elements["time-face"].textContent = formatKoreanTime(state.key);
     });
     elements["shuffle-button"].addEventListener("click", function () { changeTime(state.key, state.live, true); });
     elements["favorite-button"].addEventListener("click", toggleCurrentFavorite);
@@ -1036,17 +854,7 @@
     elements["settings-button"].addEventListener("click", function () { showDialog(elements["settings-dialog"]); });
     elements["library-button"].addEventListener("click", function () { renderFavorites(); showDialog(elements["library-dialog"]); });
     elements["info-button"].addEventListener("click", function () { showDialog(elements["info-dialog"]); });
-    elements["quote-info-button"].addEventListener("click", function () { showDialog(elements["info-dialog"]); });
-    elements["toast-action"].addEventListener("click", function () {
-      var run = state.toastAction;
-      hideToast();
-      if (run) run();
-    });
-    ["settings-dialog", "library-dialog", "info-dialog"].forEach(function (id) {
-      elements[id].addEventListener("close", function () {
-        if (elements.toast.parentElement === elements[id]) document.body.appendChild(elements.toast);
-      });
-    });
+    elements["source-button"].addEventListener("click", function () { showDialog(elements["info-dialog"]); });
     elements["library-search"].addEventListener("input", renderFavorites);
     elements["favorites-list"].addEventListener("click", function (event) {
       var deleteButton = event.target.closest(".favorite-delete");
@@ -1059,30 +867,26 @@
       elements["import-favorites"].click();
     });
     elements["import-favorites"].addEventListener("change", function () { importFavorites(this.files && this.files[0]); });
-    elements["clear-favorites"].addEventListener("click", confirmClearFavorites);
+    elements["clear-favorites"].addEventListener("click", function () {
+      if (!readFavorites().length) return;
+      if (global.confirm("저장한 문장을 모두 지울까요?")) {
+        writeFavorites([]);
+        renderFavorites();
+        updateFavoriteButton();
+        toast("저장한 문장을 모두 지웠습니다.");
+      }
+    });
     document.querySelectorAll("[data-theme]").forEach(function (button) {
       button.addEventListener("click", function () { storageSet(THEME_KEY, button.dataset.theme); applyTheme(button.dataset.theme); });
     });
     document.querySelectorAll("[data-font]").forEach(function (button) {
       button.addEventListener("click", function () { storageSet(FONT_KEY, button.dataset.font); applyFont(button.dataset.font); });
     });
-    if (window.matchMedia) {
-      var schemeQuery = window.matchMedia("(prefers-color-scheme: dark)");
-      if (schemeQuery && typeof schemeQuery.addEventListener === "function") {
-        schemeQuery.addEventListener("change", updateThemeColorMeta);
-      }
-    }
     elements["dim-slider"].addEventListener("input", function () { storageSet(DIM_KEY, this.value); applyDim(); });
-    elements["dock-toggle"].addEventListener("change", function () {
-      if (this.checked !== document.body.classList.contains("dock-mode")) toggleDockMode();
-    });
+    elements["dock-toggle"].addEventListener("change", function () { storageSet(DOCK_KEY, this.checked ? "true" : "false"); applyDock(this.checked); });
     elements["original-toggle"].addEventListener("change", function () {
       storageSet(ORIGINAL_KEY, this.checked ? "true" : "false");
-      elements.stage.setAttribute("aria-live", "polite");
       chooseQuote(false);
-    });
-    elements["shortcut-toggle"].addEventListener("change", function () {
-      storageSet(SHORTCUT_KEY, this.checked ? "true" : "false");
     });
     elements["fullscreen-button"].addEventListener("click", function () {
       if (!document.fullscreenElement && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(function () {});
@@ -1097,33 +901,29 @@
     window.addEventListener("offline", updateConnectionStatus);
     document.addEventListener("visibilitychange", function () {
       if (document.visibilityState === "visible") {
-        if (state.live) changeTime(formatHHMM(new Date()), true, false, { auto: true });
+        if (state.live) changeTime(formatHHMM(new Date()), true, false);
         requestWakeLock();
         scheduleMinuteTick();
       }
     });
     window.addEventListener("pageshow", function () {
-      if (state.live) changeTime(formatHHMM(new Date()), true, false, { auto: true });
+      if (state.live) changeTime(formatHHMM(new Date()), true, false);
     });
-    ["pointermove", "pointerdown", "keydown", "touchstart"].forEach(function (name) {
+    ["pointermove", "pointerdown", "keydown", "touchstart", "focusin"].forEach(function (name) {
       document.addEventListener(name, resetDockControls, { passive: true });
+    });
+    document.addEventListener("focusout", function () {
+      if (document.body.classList.contains("controls-visible")) resetDockControls();
     });
     document.addEventListener("keydown", function (event) {
       if (isInteractiveShortcutTarget(event.target)) return;
       if (document.querySelector("dialog[open]")) return;
-      if (event.key === "Escape") {
-        if (document.body.classList.contains("dock-mode")) toggleDockMode();
-        return;
-      }
-      if (event.key === "ArrowLeft") stepMinute(event.shiftKey ? -10 : -1);
-      else if (event.key === "ArrowRight") stepMinute(event.shiftKey ? 10 : 1);
+      if (event.key === "ArrowLeft") stepMinute(-1);
+      else if (event.key === "ArrowRight") stepMinute(1);
+      else if (event.key.toLocaleLowerCase() === "n") goLive();
       else if (event.code === "Space") {
         event.preventDefault();
         if (!elements["shuffle-button"].disabled) changeTime(state.key, state.live, true);
-      } else if (letterShortcutsEnabled() && !event.altKey && !event.ctrlKey && !event.metaKey) {
-        if (event.code === "KeyN") goLive();
-        else if (event.code === "KeyS") toggleCurrentFavorite();
-        else if (event.code === "KeyD") toggleDockMode();
       }
     });
   }
@@ -1141,7 +941,6 @@
     applyFont(storageGet(FONT_KEY, "normal"));
     elements["dim-slider"].value = storageGet(DIM_KEY, "0");
     elements["original-toggle"].checked = preferOriginal();
-    elements["shortcut-toggle"].checked = letterShortcutsEnabled();
     setupEvents();
     setupInstall();
     setupServiceWorker();
@@ -1155,7 +954,6 @@
     chooseQuote(false);
     updateFavoriteButton();
     scheduleMinuteTick();
-    scheduleBrowseReturn();
     updateSecondDisplay();
     applyDim();
   }

@@ -3,9 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#eae2d3" />
-  <meta name="theme-color" content="#eae2d3" media="(prefers-color-scheme: light)" />
-  <meta name="theme-color" content="#131110" media="(prefers-color-scheme: dark)" />
+  <meta name="theme-color" content="#eee8dc" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#10110f" media="(prefers-color-scheme: dark)" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="작가시계" />
@@ -43,7 +42,6 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png" />
   <link rel="icon" href="assets/icons/favicon-32.png" />
-  <link rel="preload" href="assets/fonts/NotoSerifKR-subset.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="stylesheet" href="assets/style.css" />
 </head>
 <body>
@@ -52,68 +50,69 @@
   <header class="app-header">
     <a class="brand" href="./" aria-label="작가시계 현재 시각으로">
       <span class="brand-mark" aria-hidden="true">文</span>
-      <span class="brand-name">작가시계</span>
+      <span>작가시계</span>
     </a>
-    <div class="header-actions" role="group" aria-label="앱 메뉴">
-      <span id="connection-status" class="connection-status" role="status" hidden>오프라인</span>
-      <button id="install-button" class="quiet-button" type="button" hidden>설치</button>
+    <div class="header-actions" aria-label="앱 메뉴">
       <button id="dock-button" class="dock-button" type="button" aria-pressed="false">거치 시계</button>
-      <button id="library-button" class="icon-button" type="button" aria-label="저장한 문장 열기" aria-haspopup="dialog">♡</button>
-      <button id="settings-button" class="icon-button" type="button" aria-label="설정 열기" aria-haspopup="dialog">Aa</button>
-      <button id="info-button" class="icon-button" type="button" aria-label="작가시계 정보 열기" aria-haspopup="dialog">i</button>
+      <button id="library-button" class="icon-button" type="button" aria-label="저장한 문장 열기" title="저장한 문장" aria-haspopup="dialog">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4.5A1.5 1.5 0 0 1 7.5 3h9A1.5 1.5 0 0 1 18 4.5V21l-6-4-6 4z" /></svg>
+      </button>
+      <button id="settings-button" class="icon-button" type="button" aria-label="설정 열기" title="보기와 거치 설정" aria-haspopup="dialog">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h9m4 0h3M4 17h3m4 0h9" /><circle cx="15" cy="7" r="2" /><circle cx="9" cy="17" r="2" /></svg>
+      </button>
+      <button id="info-button" class="icon-button" type="button" aria-label="작가시계 정보 열기" title="이 문장과 작가시계" aria-haspopup="dialog">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 11v6m0-10v.1" /></svg>
+      </button>
     </div>
   </header>
 
   <main class="clock-shell">
     <section class="time-heading" aria-label="표시 중인 시각">
-      <p id="mode-label" class="mode-label">
-        <span class="mode-label-text">탐색 중</span>
-        <button id="return-live" class="return-live" type="button">지금으로 돌아가기</button>
-      </p>
+      <div class="time-heading-topline">
+        <p id="mode-label" class="eyebrow">현재 시각</p>
+      </div>
       <div class="clock-lockup">
-        <span id="period-label" class="period-label">오전</span>
+        <span id="period-label" class="period-label" aria-hidden="true">오전</span>
         <time id="clock" class="clock" datetime="">--:--</time>
         <span id="clock-seconds" class="clock-seconds" aria-hidden="true">--</span>
       </div>
-      <div class="minute-progress" aria-hidden="true"><span id="minute-progress-bar"></span></div>
-      <p class="time-colophon">
-        <span id="date-label" class="date-label"></span>
-        <span id="minute-index" class="minute-index" aria-hidden="true"></span>
-      </p>
+      <p id="date-label" class="date-label"></p>
     </section>
 
-    <article id="stage" class="quote-stage" aria-live="polite" aria-atomic="true" aria-busy="true">
+    <article id="stage" class="quote-stage" aria-live="polite" aria-busy="true">
       <p class="quote-kicker"><span>이 시각의 문장</span></p>
-      <blockquote id="quote" class="quote-text" tabindex="-1">문장을 불러오는 중입니다.</blockquote>
+      <blockquote id="quote" class="quote-text">문장을 불러오는 중입니다.</blockquote>
       <footer class="quote-meta">
-        <p class="quote-cite-line">
+        <button id="source-button" class="source-button" type="button" aria-haspopup="dialog" title="이 문장의 출전 보기">
           <cite id="source"></cite>
-          <button id="quote-info-button" class="quote-info-link" type="button" aria-haspopup="dialog">문장 정보</button>
-        </p>
-        <span id="quote-badges" class="quote-badges" role="group" aria-label="문장 주의 사항"></span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg>
+        </button>
+        <span id="quote-badges" class="quote-badges" aria-label="문장 정보"></span>
       </footer>
+      <p id="quote-error" class="quote-error" role="alert" hidden></p>
     </article>
-    <p id="quote-error" class="quote-error" role="alert" hidden></p>
 
     <footer class="control-deck" aria-label="시계와 문장 조작">
-      <nav class="time-navigation" aria-label="시간 탐색">
-        <button id="previous-minute" class="nav-button" type="button" aria-label="1분 전">−1분</button>
+      <details id="time-explorer" class="time-explorer">
+        <summary class="explorer-toggle"><span id="explorer-label">시간 둘러보기</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg></summary>
+        <nav class="time-navigation" aria-label="시간 탐색">
+        <button id="previous-minute" class="nav-button" type="button" aria-label="1분 전">−1</button>
         <label class="time-picker-label" for="time-picker">
           <span class="visually-hidden">볼 시각 선택</span>
           <input id="time-picker" type="time" step="60" aria-label="볼 시각 선택" />
-          <span id="time-face" class="time-face" aria-hidden="true">--:--</span>
         </label>
-        <button id="now-button" class="nav-button nav-button-primary" type="button" aria-label="현재 시각으로 돌아가기">지금</button>
-        <button id="next-minute" class="nav-button" type="button" aria-label="1분 뒤">+1분</button>
-      </nav>
+        <button id="now-button" class="nav-button nav-button-primary" type="button">현재</button>
+        <button id="next-minute" class="nav-button" type="button" aria-label="1분 뒤">+1</button>
+        </nav>
+      </details>
 
-      <div class="quote-actions" role="group" aria-label="현재 문장 작업">
+      <div class="quote-actions" aria-label="현재 문장 작업">
         <button id="shuffle-button" type="button">다른 문장</button>
         <button id="favorite-button" type="button" aria-pressed="false">♡ 저장</button>
         <button id="share-button" type="button">공유</button>
       </div>
 
-      <p class="keyboard-hint">← → 1분 · Shift 10분 · Space 다른 문장 · N 지금 · S 저장 · D 거치 · Esc 거치 종료</p>
+      <p class="keyboard-hint">← → 시각 이동 · Space 다른 문장 · N 현재 시각</p>
     </footer>
   </main>
 
@@ -140,7 +139,7 @@
         </div>
       </fieldset>
       <label class="range-setting" for="dim-slider">
-        <span>화면 어둡게 <output id="dim-value" for="dim-slider">0%</output></span>
+        <span>화면 어둡게</span>
         <input id="dim-slider" type="range" min="0" max="0.8" value="0" step="0.05" />
       </label>
       <label class="switch-setting" for="dock-toggle">
@@ -157,15 +156,10 @@
         </span>
         <input id="original-toggle" type="checkbox" role="switch" checked />
       </label>
-      <label class="switch-setting" for="shortcut-toggle">
-        <span>
-          <strong>글자 키 단축키</strong>
-          <small>N 지금 · S 저장 · D 거치 (끄면 화살표와 Space만 사용)</small>
-        </span>
-        <input id="shortcut-toggle" type="checkbox" role="switch" checked />
-      </label>
       <button id="fullscreen-button" class="wide-button" type="button">전체 화면</button>
+      <button id="install-button" class="wide-button" type="button" hidden>앱 설치</button>
       <button id="update-button" class="wide-button" type="button" hidden>새 버전으로 새로고침</button>
+      <p id="connection-status" class="connection-status" role="status" hidden>오프라인</p>
     </div>
   </dialog>
 
@@ -197,7 +191,7 @@
       <h2 id="info-title">이 문장과 작가시계</h2>
       <button class="dialog-close" value="close" aria-label="정보 닫기">×</button>
     </form>
-    <div class="dialog-body info-copy" role="region" aria-labelledby="info-title" tabindex="0">
+    <div class="dialog-body info-copy">
       <dl class="quote-details">
         <div><dt>표시 시각</dt><dd id="detail-time">—</dd></div>
         <div><dt>시간 표현</dt><dd id="detail-expression">—</dd></div>
@@ -207,22 +201,20 @@
         <div><dt>출전 상태</dt><dd id="detail-review">—</dd></div>
         <div><dt>시간대 상태</dt><dd id="detail-period">—</dd></div>
         <div><dt>내용 주의</dt><dd id="detail-warning">—</dd></div>
-        <div><dt>원문 시각</dt><dd id="detail-source-expression" lang="en">—</dd></div>
-        <div><dt>원문 작품</dt><dd id="detail-source-title" lang="en">—</dd></div>
-        <div><dt>원문 작가</dt><dd id="detail-source-author" lang="en">—</dd></div>
-        <div><dt>영어 원문</dt><dd id="detail-source-quote" class="detail-source-quote" lang="en">—</dd></div>
+        <div><dt>원문 시각</dt><dd id="detail-source-expression">—</dd></div>
+        <div><dt>원문 작품</dt><dd id="detail-source-title">—</dd></div>
+        <div><dt>원문 작가</dt><dd id="detail-source-author">—</dd></div>
+        <div><dt>영어 원문</dt><dd id="detail-source-quote" class="detail-source-quote">—</dd></div>
         <div><dt>출전 링크</dt><dd><a id="detail-source-link" target="_blank" rel="noopener noreferrer" hidden>원문 출전 열기</a></dd></div>
       </dl>
       <p>매분에는 해당 시각으로 분류된 문장만 표시합니다. 정밀 문장이 없을 때 다른 시간대 문장을 대신 보여주지 않으며, 데이터 감사도 이 규칙을 검사합니다.</p>
       <p>‘원문’은 한국어 공개저작에서 발췌한 문장, ‘번역’은 외국 문학의 시간 문장을 한국어로 옮긴 항목입니다. 번역 인용문의 권리와 출처는 <a href="DATA_LICENSE.md">데이터 권리 안내</a>를 확인하세요.</p>
-      <h3 class="info-subheading">키보드 단축키</h3>
-      <p>← → 1분 이동 · Shift+← → 10분 이동 · Space 다른 문장 · N 지금으로 · S 저장 · D 거치 모드 · Esc 거치 종료. 글자 키 단축키는 설정에서 끌 수 있습니다.</p>
       <p class="info-links"><a href="https://github.com/junlee122-bot/writerclock" target="_blank" rel="noopener noreferrer">소스 코드</a><a href="NOTICE.md">출처와 기여</a></p>
     </div>
   </dialog>
 
   <div id="night-dim" aria-hidden="true"></div>
-  <div id="toast" class="toast" role="status" aria-live="polite"><span id="toast-message"></span><button id="toast-action" type="button" hidden></button></div>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
   <script src="data/ko_quotes.js"></script>
   <script src="assets/app.js"></script>
