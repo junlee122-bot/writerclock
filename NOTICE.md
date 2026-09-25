@@ -43,6 +43,17 @@ WriterClock은 `gyuminlee-repo/author-clock`의 2026-07-08 커밋
 각 파일 또는 상류 프로젝트의 라이선스를 따릅니다. 이 저장소에 포함되어
 있다는 사실만으로 별도의 권리가 부여되지는 않습니다.
 
+웹·앱 화면은 두 가지 폰트 서브셋을 포함합니다. 인용문과 출전은 Noto Serif KR
+가변 폰트에서 앱이 쓰는 글자만 남긴 `assets/fonts/NotoSerifKR-subset.woff2`로,
+시계 숫자는 Kil Hyung-jin의 Pretendard Variable에서 숫자와 콜론만 남긴
+`assets/fonts/WriterClockNumerals-subset.woff2`로 표시합니다. 두 파일 모두
+SIL Open Font License 1.1의 변형 폰트이며, Pretendard는 Reserved Font Name이므로
+변형본의 이름을 `WriterClock Numerals`로 바꿨습니다. 저작권 고지, 라이선스 전문과
+서브셋 재생성 방법은
+[`assets/fonts/OFL-NotoSerifKR.txt`](https://github.com/junlee122-bot/writerclock/blob/main/assets/fonts/OFL-NotoSerifKR.txt)와
+[`assets/fonts/OFL-WriterClockNumerals.txt`](https://github.com/junlee122-bot/writerclock/blob/main/assets/fonts/OFL-WriterClockNumerals.txt)에
+보존합니다.
+
 펌웨어 폰트 빌드는 Kil Hyung-jin의 Pretendard를 서브셋·LVGL C 형식으로
 변환합니다. Pretendard의 Reserved Font Name은 `Pretendard`이며 Font Software와
 그 변형에는 SIL Open Font License 1.1이 적용됩니다. 전체 저작권 고지와

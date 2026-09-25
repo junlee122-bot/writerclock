@@ -9,7 +9,11 @@
   var DIM_KEY = STORAGE_PREFIX + "dim";
   var DOCK_KEY = STORAGE_PREFIX + "dock";
   var ORIGINAL_KEY = STORAGE_PREFIX + "preferOriginal";
+  var SHORTCUT_KEY = STORAGE_PREFIX + "letterShortcuts";
   var RECENT_LIMIT = 24;
+  var DOCK_BROWSE_RETURN_MS = 3 * 60 * 1000;
+  var QUOTE_SWAP_MS = 190;
+  var THEME_COLORS = { light: "#f0ebe2", dark: "#151714" };
 
   function escapeHtml(value) {
     return String(value == null ? "" : value)
@@ -209,11 +213,11 @@
 
   var elements = {};
   [
-    "clock", "clock-seconds", "period-label", "mode-label", "date-label", "stage", "quote", "source", "source-button", "quote-badges", "quote-error",
+    "clock", "clock-seconds", "period-label", "mode-label", "return-live", "date-label", "stage", "quote", "source", "source-button", "quote-badges", "quote-error",
     "time-explorer", "explorer-label",
     "previous-minute", "next-minute", "now-button", "time-picker", "shuffle-button", "favorite-button",
     "share-button", "settings-button", "library-button", "info-button", "install-button", "dock-button", "connection-status",
-    "settings-dialog", "library-dialog", "info-dialog", "dim-slider", "dock-toggle", "original-toggle",
+    "settings-dialog", "library-dialog", "info-dialog", "dim-slider", "dock-toggle", "original-toggle", "shortcut-toggle",
     "fullscreen-button", "update-button", "library-search", "favorites-list", "library-count",
     "export-favorites", "import-favorites-button", "import-favorites", "clear-favorites", "night-dim", "toast", "detail-time",
     "detail-expression", "detail-title", "detail-author", "detail-kind", "detail-review", "detail-period",
@@ -231,8 +235,11 @@
     minuteTimer: null,
     secondTimer: null,
     dockTimer: null,
+    browseReturnTimer: null,
     driftTimer: null,
     toastTimer: null,
+    swapTimer: null,
+    clearConfirmTimer: null,
     wakeLock: null,
     installPrompt: null,
     waitingWorker: null,
@@ -297,6 +304,20 @@
     return storageGet(ORIGINAL_KEY, "true") !== "false";
   }
 
+  function letterShortcutsEnabled() {
+    return storageGet(SHORTCUT_KEY, "true") !== "false";
+  }
+
+  function prefersReducedMotion() {
+    return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  }
+
+  function isTextEntryTarget(target) {
+    var element = target && target.nodeType === 3 ? target.parentElement : target;
+    if (!element || typeof element.closest !== "function") return false;
+    return !!element.closest("input, textarea, select, [contenteditable]:not([contenteditable='false'])");
+  }
+
   function updateShuffleAvailability() {
     var count = preferredExactPool(getData(), state.key, preferOriginal()).length;
     var disabled = count < 2;
@@ -328,10 +349,15 @@
     elements["period-label"].textContent = hour < 12 ? "오전" : "오후";
     elements["mode-label"].textContent = state.live
       ? "현재 시각"
-      : "시간 탐색";
+      : "시간 탐색 중";
+    // Browsing must never pass for the live clock: mark the state and keep
+    // the way back visible even while the time explorer is folded.
+    document.body.dataset.mode = state.live ? "live" : "browse";
+    elements["return-live"].hidden = state.live;
     elements["explorer-label"].textContent = state.live ? "시간 둘러보기" : formatKoreanTime(state.key);
     elements["date-label"].textContent = state.live ? displayDate(new Date()) : "선택한 시각의 문장";
-    elements["time-picker"].value = state.key;
+    // A live minute tick must not wipe a time the user is typing.
+    if (document.activeElement !== elements["time-picker"]) elements["time-picker"].value = state.key;
   }
 
   function updateSecondDisplay() {
@@ -431,11 +457,10 @@
     elements.quote.innerHTML = renderQuoteHtml(item.q, item.t);
     elements.source.textContent = sourceText(item);
     elements["source-button"].hidden = false;
+    // The reading surface keeps only what a reader needs; review and
+    // provenance states live in the source dialog behind the citation.
     var badges = badge(item.kind === "원문" ? "원문" : "번역", "");
-    if (item.sfw === "nsfw" || item.content_warning) badges += badge("민감한 내용", "");
-    else if (item.kind === "역" && item.sfw !== "sfw") badges += badge("내용 분류 미확인", "");
-    if (item.review_status === "source_row_reviewed") badges += badge("출전 검토 완료", "");
-    if (item.review_status === "primary_source_verified") badges += badge("1차 출전 확인", "");
+    if (item.sfw === "nsfw" || item.content_warning) badges += badge("민감한 내용", "badge-warning");
     if (item.period_review_status === "period_ambiguous") {
       badges += badge("오전·오후 미확정", "badge-warning");
     }
@@ -465,26 +490,45 @@
     history.replaceState(null, "", url.pathname + url.search + url.hash);
   }
 
-  function changeTime(key, live, shuffle) {
+  function changeTime(key, live, shuffle, options) {
     if (!isValidHHMM(key)) return;
+    options = options || {};
     var changed = key !== state.key || live !== state.live;
     state.key = key;
     state.live = !!live;
     updateTimeHeading();
     updateUrl();
     updateShuffleAvailability();
+    scheduleBrowseReturn();
     if (changed || shuffle) {
+      // Automatic minute ticks stay quiet for screen readers; a clock that
+      // reads a whole passage aloud every minute is unusable with one.
+      elements.stage.setAttribute("aria-live", options.auto ? "off" : "polite");
+      clearTimeout(state.swapTimer);
       elements.stage.classList.add("is-swapping");
-      setTimeout(function () {
+      // Swap after the fade-out finishes instead of cutting it short.
+      state.swapTimer = setTimeout(function () {
         chooseQuote(!!shuffle);
         elements.stage.classList.remove("is-swapping");
-      }, window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 120);
+      }, prefersReducedMotion() ? 0 : QUOTE_SWAP_MS);
     }
   }
 
-  function goLive() {
-    changeTime(formatHHMM(new Date()), true, false);
+  function goLive(options) {
+    changeTime(formatHHMM(new Date()), true, false, options);
     scheduleMinuteTick();
+  }
+
+  /* A docked clock must never keep showing a browsed minute: after a few
+     idle minutes in dock mode it returns to the live time on its own. */
+  function scheduleBrowseReturn() {
+    clearTimeout(state.browseReturnTimer);
+    if (state.live || !document.body.classList.contains("dock-mode")) return;
+    state.browseReturnTimer = setTimeout(function () {
+      if (state.live || !document.body.classList.contains("dock-mode")) return;
+      goLive({ auto: true });
+      toast("현재 시각으로 돌아왔습니다.");
+    }, DOCK_BROWSE_RETURN_MS);
   }
 
   function stepMinute(delta) {
@@ -497,7 +541,7 @@
     var now = new Date();
     var delay = (60 - now.getSeconds()) * 1000 - now.getMilliseconds() + 25;
     state.minuteTimer = setTimeout(function () {
-      if (state.live) changeTime(formatHHMM(new Date()), true, false);
+      if (state.live) changeTime(formatHHMM(new Date()), true, false, { auto: true });
       scheduleMinuteTick();
     }, delay);
   }
@@ -579,10 +623,15 @@
       return;
     }
     closeDialog(elements["library-dialog"]);
+    // A pending minute-tick swap would otherwise replace the opened quote.
+    clearTimeout(state.swapTimer);
+    elements.stage.classList.remove("is-swapping");
+    elements.stage.setAttribute("aria-live", "polite");
     state.key = canonical.time;
     state.live = false;
     updateTimeHeading();
     updateUrl();
+    scheduleBrowseReturn();
     renderQuote(canonical);
   }
 
@@ -670,6 +719,12 @@
     document.querySelectorAll("[data-theme]").forEach(function (button) {
       button.setAttribute("aria-pressed", button.dataset.theme === mode ? "true" : "false");
     });
+    // Keep the system/title bar the same paper or ink as the page, including
+    // when the in-app theme overrides the OS preference.
+    document.querySelectorAll('meta[name="theme-color"]').forEach(function (meta) {
+      var scheme = /dark/.test(meta.getAttribute("media") || "") ? "dark" : "light";
+      meta.setAttribute("content", THEME_COLORS[mode === "auto" ? scheme : mode]);
+    });
   }
 
   function applyFont(value) {
@@ -718,11 +773,13 @@
     applyDim();
     resetDockControls();
     applyDrift();
+    scheduleBrowseReturn();
   }
 
   function resetDockControls() {
     if (!document.body.classList.contains("dock-mode")) return;
     document.body.classList.add("controls-visible");
+    scheduleBrowseReturn();
     clearTimeout(state.dockTimer);
     state.dockTimer = setTimeout(function () {
       var focusedControl = state.keyboardNavigation && document.activeElement &&
@@ -735,7 +792,8 @@
 
   function applyDrift() {
     clearTimeout(state.driftTimer);
-    var enabled = document.body.classList.contains("dock-mode");
+    // With reduced motion the drift would be an abrupt jump twice a minute.
+    var enabled = document.body.classList.contains("dock-mode") && !prefersReducedMotion();
     if (!enabled) {
       document.body.style.removeProperty("--drift-x");
       document.body.style.removeProperty("--drift-y");
@@ -751,6 +809,11 @@
     var enabled = !document.body.classList.contains("dock-mode");
     storageSet(DOCK_KEY, enabled ? "true" : "false");
     applyDock(enabled);
+    if (enabled) {
+      // A docked clock shows the real time, never a browsed minute.
+      if (!state.live) goLive();
+      toast("거치 모드입니다. 화면을 누르면 메뉴가 나타나고 Esc로 끝낼 수 있습니다.");
+    }
     if (enabled && !document.fullscreenElement && document.documentElement.requestFullscreen) {
       document.documentElement.requestFullscreen().catch(function () {});
     } else if (!enabled && document.fullscreenElement && document.exitFullscreen) {
@@ -823,12 +886,44 @@
     toast("새 버전이 준비됐습니다.");
   }
 
+  /* Two-step confirm inside the dialog instead of the browser's native
+     confirm(), which breaks out of the app's own surfaces. */
+  function resetClearConfirm() {
+    clearTimeout(state.clearConfirmTimer);
+    elements["clear-favorites"].classList.remove("is-confirming");
+    elements["clear-favorites"].textContent = "모두 지우기";
+  }
+
+  function confirmClearFavorites() {
+    var button = elements["clear-favorites"];
+    var count = readFavorites().length;
+    if (!count) return;
+    if (!button.classList.contains("is-confirming")) {
+      button.classList.add("is-confirming");
+      button.textContent = "한 번 더 누르면 " + count + "개를 모두 지웁니다";
+      clearTimeout(state.clearConfirmTimer);
+      state.clearConfirmTimer = setTimeout(resetClearConfirm, 4000);
+      return;
+    }
+    resetClearConfirm();
+    writeFavorites([]);
+    renderFavorites();
+    updateFavoriteButton();
+    toast("저장한 문장을 모두 지웠습니다.");
+  }
+
   function setupEvents() {
     elements["previous-minute"].addEventListener("click", function () { stepMinute(-1); });
     elements["next-minute"].addEventListener("click", function () { stepMinute(1); });
     elements["now-button"].addEventListener("click", function () {
       goLive();
       elements["time-explorer"].open = false;
+      elements["time-explorer"].querySelector("summary").focus();
+    });
+    elements["return-live"].addEventListener("click", function () {
+      goLive();
+      elements["time-explorer"].open = false;
+      // The button hides itself once live; keep keyboard focus on the page.
       elements["time-explorer"].querySelector("summary").focus();
     });
     elements["time-explorer"].addEventListener("toggle", resetDockControls);
@@ -846,6 +941,9 @@
     document.addEventListener("keydown", function () { state.keyboardNavigation = true; }, { capture: true });
     elements["time-picker"].addEventListener("change", function () {
       if (isValidHHMM(elements["time-picker"].value)) changeTime(elements["time-picker"].value, false, false);
+    });
+    elements["time-picker"].addEventListener("blur", function () {
+      elements["time-picker"].value = state.key;
     });
     elements["shuffle-button"].addEventListener("click", function () { changeTime(state.key, state.live, true); });
     elements["favorite-button"].addEventListener("click", toggleCurrentFavorite);
@@ -867,15 +965,7 @@
       elements["import-favorites"].click();
     });
     elements["import-favorites"].addEventListener("change", function () { importFavorites(this.files && this.files[0]); });
-    elements["clear-favorites"].addEventListener("click", function () {
-      if (!readFavorites().length) return;
-      if (global.confirm("저장한 문장을 모두 지울까요?")) {
-        writeFavorites([]);
-        renderFavorites();
-        updateFavoriteButton();
-        toast("저장한 문장을 모두 지웠습니다.");
-      }
-    });
+    elements["clear-favorites"].addEventListener("click", confirmClearFavorites);
     document.querySelectorAll("[data-theme]").forEach(function (button) {
       button.addEventListener("click", function () { storageSet(THEME_KEY, button.dataset.theme); applyTheme(button.dataset.theme); });
     });
@@ -883,11 +973,19 @@
       button.addEventListener("click", function () { storageSet(FONT_KEY, button.dataset.font); applyFont(button.dataset.font); });
     });
     elements["dim-slider"].addEventListener("input", function () { storageSet(DIM_KEY, this.value); applyDim(); });
-    elements["dock-toggle"].addEventListener("change", function () { storageSet(DOCK_KEY, this.checked ? "true" : "false"); applyDock(this.checked); });
+    elements["dock-toggle"].addEventListener("change", function () {
+      // Same path as the header button, so both entries behave identically.
+      if (this.checked !== document.body.classList.contains("dock-mode")) toggleDockMode();
+    });
     elements["original-toggle"].addEventListener("change", function () {
       storageSet(ORIGINAL_KEY, this.checked ? "true" : "false");
+      elements.stage.setAttribute("aria-live", "polite");
       chooseQuote(false);
     });
+    elements["shortcut-toggle"].addEventListener("change", function () {
+      storageSet(SHORTCUT_KEY, this.checked ? "true" : "false");
+    });
+    elements["library-dialog"].addEventListener("close", resetClearConfirm);
     elements["fullscreen-button"].addEventListener("click", function () {
       if (!document.fullscreenElement && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(function () {});
       else if (document.exitFullscreen) document.exitFullscreen().catch(function () {});
@@ -901,13 +999,13 @@
     window.addEventListener("offline", updateConnectionStatus);
     document.addEventListener("visibilitychange", function () {
       if (document.visibilityState === "visible") {
-        if (state.live) changeTime(formatHHMM(new Date()), true, false);
+        if (state.live) changeTime(formatHHMM(new Date()), true, false, { auto: true });
         requestWakeLock();
         scheduleMinuteTick();
       }
     });
     window.addEventListener("pageshow", function () {
-      if (state.live) changeTime(formatHHMM(new Date()), true, false);
+      if (state.live) changeTime(formatHHMM(new Date()), true, false, { auto: true });
     });
     ["pointermove", "pointerdown", "keydown", "touchstart", "focusin"].forEach(function (name) {
       document.addEventListener(name, resetDockControls, { passive: true });
@@ -916,14 +1014,26 @@
       if (document.body.classList.contains("controls-visible")) resetDockControls();
     });
     document.addEventListener("keydown", function (event) {
-      if (isInteractiveShortcutTarget(event.target)) return;
       if (document.querySelector("dialog[open]")) return;
-      if (event.key === "ArrowLeft") stepMinute(-1);
-      else if (event.key === "ArrowRight") stepMinute(1);
-      else if (event.key.toLocaleLowerCase() === "n") goLive();
+      // Esc leaves dock mode from anywhere except text entry (the time
+      // explorer handles its own Esc first and stops propagation).
+      if (event.key === "Escape") {
+        if (document.body.classList.contains("dock-mode") && !isTextEntryTarget(event.target)) toggleDockMode();
+        return;
+      }
+      if (isInteractiveShortcutTarget(event.target)) return;
+      if (event.key === "ArrowLeft") stepMinute(event.shiftKey ? -10 : -1);
+      else if (event.key === "ArrowRight") stepMinute(event.shiftKey ? 10 : 1);
       else if (event.code === "Space") {
         event.preventDefault();
         if (!elements["shuffle-button"].disabled) changeTime(state.key, state.live, true);
+      } else if (
+        // event.code keeps N working under a Korean IME (event.key is "ㅜ");
+        // the setting lets people turn single-letter shortcuts off (WCAG 2.1.4).
+        event.code === "KeyN" && letterShortcutsEnabled() &&
+        !event.altKey && !event.ctrlKey && !event.metaKey
+      ) {
+        goLive();
       }
     });
   }
@@ -941,6 +1051,7 @@
     applyFont(storageGet(FONT_KEY, "normal"));
     elements["dim-slider"].value = storageGet(DIM_KEY, "0");
     elements["original-toggle"].checked = preferOriginal();
+    elements["shortcut-toggle"].checked = letterShortcutsEnabled();
     setupEvents();
     setupInstall();
     setupServiceWorker();
@@ -954,6 +1065,8 @@
     chooseQuote(false);
     updateFavoriteButton();
     scheduleMinuteTick();
+    // Dock mode restored with a ?time= link still falls back to live time.
+    scheduleBrowseReturn();
     updateSecondDisplay();
     applyDim();
   }

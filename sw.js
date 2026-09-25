@@ -2,12 +2,16 @@
 "use strict";
 
 var CACHE_PREFIX = "writerclock-";
-var CACHE_NAME = CACHE_PREFIX + "v1.4.0";
+var CACHE_NAME = CACHE_PREFIX + "v1.4.1";
 var PRECACHE_URLS = [
   "./",
   "./index.html",
   "assets/style.css",
   "assets/app.js",
+  "assets/fonts/NotoSerifKR-subset.woff2",
+  "assets/fonts/WriterClockNumerals-subset.woff2",
+  "assets/fonts/OFL-NotoSerifKR.txt",
+  "assets/fonts/OFL-WriterClockNumerals.txt",
   "assets/og-image.png",
   "data/ko_quotes.js",
   "docs/SOURCE_AUDIT.md",
